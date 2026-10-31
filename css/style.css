@@ -58,3 +58,8 @@ select{width:100%;background:#24182a;color:var(--ink);border:1px solid var(--lin
 details summary{cursor:pointer;color:var(--mute);font-size:14px;margin-top:2px}
 .hidden{display:none!important}
 @media (max-width:400px){.mxgrid,.grid2{grid-template-columns:1fr}.tog{min-width:110px}}
+.pats{display:grid;gap:6px;margin-top:6px}
+.pats label{display:grid;grid-template-columns:1fr 1.3fr;gap:8px;align-items:center;font-size:14px}
+.pats input,textarea{width:100%;background:#24182a;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:7px 9px;font:15px ui-monospace,Menlo,monospace;letter-spacing:.08em}
+textarea{min-height:58px;resize:vertical;font:16px 'Cormorant Garamond',serif;letter-spacing:0}
+.dim{opacity:.45}

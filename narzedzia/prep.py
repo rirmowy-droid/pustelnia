@@ -7,7 +7,7 @@ from scipy.signal import resample_poly, stft, istft
 SR = 44100
 EC = '/home/claude/pu/dl/choir/ec'
 VC = '/home/claude/src/vcsl'
-OUT = '/home/claude/pu/app/sample'
+OUT = '/home/claude/pu/repo/sample'
 NOTE = {'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11}
 def midi(name):
     m = re.match(r'([A-G])(s|#|b)?(-?\d)', name); acc = {'s': '#', '#': '#', 'b': 'b', None: ''}[m[2]]
@@ -150,6 +150,19 @@ def bells():
     perc('dzwoneczki_kadzielnicy', 'Idiophones/Struck Idiophones/Sleigh Bells/*.wav', 3)
     perc('kowadlo', 'Idiophones/Struck Idiophones/Anvil/*.wav', 3)
 
+def drums():
+    # frame drum: 'dum' = open low hit (large drum), 'tek' = muted / small drum ; darbuka for the high strokes
+    files = sorted(glob.glob(f'{VC}/Membranophones/Struck Membranophones/Frame Drum/*.wav')) + sorted(glob.glob(f'{VC}/Membranophones/Struck Membranophones/Darbuka/*vl2*.wav'))
+    xs = []
+    for p in files:
+        b = os.path.basename(p)
+        kind = 'dum' if b.startswith('HDrumL_Hit_') else 'tek' if ('HitMuted' in b or b.startswith('HDrumS_Hit_')) else 'dar' if b.startswith('Darbuka') else 'reka'
+        x = rd(p); x = fade_out(x[onset(x, 0.01):], 2.0); xs.append((kind, b, x))
+    pk = max(np.abs(x).max() for *_, x in xs)
+    for kind, b, x in xs:
+        nm = kind + '_' + re.sub(r'[^A-Za-z0-9_]', '', os.path.splitext(b)[0]); enc('beben', nm, x, pk); add_perc('beben', nm)
+    print('drums', len(xs), flush=True)
+
 # ------------------------------------------------------------------ chains (synthesized)
 def link_hit(rng, amp, bright=1.0):
     """One steel link striking another: a short contact click + a handful of inharmonic ring modes."""
@@ -201,6 +214,6 @@ if __name__ == '__main__':
     what = sys.argv[1:] or ['choir', 'organ', 'bells', 'chains']
     if os.path.exists(f'{OUT}/manifest.json'): manifest.update(json.load(open(f'{OUT}/manifest.json')))
     for w in what:
-        for k in [k for k in list(manifest) if (w == 'choir' and k in ('bas', 'schola', 'dzieci')) or (w == 'organ' and k.startswith(('organy', 'pozytyw'))) or (w == 'chains' and k == 'lancuchy') or (w == 'bells' and k in ('dzwony_rurowe', 'dzwony_rurowe_stare', 'dzwonki_reczne', 'dzwonki_tybetanskie', 'gong', 'gong_maly', 'cymbalki', 'dzwoneczki_kadzielnicy', 'kowadlo'))]: del manifest[k]
+        for k in [k for k in list(manifest) if (w == 'choir' and k in ('bas', 'schola', 'dzieci')) or (w == 'organ' and k.startswith(('organy', 'pozytyw'))) or (w == 'chains' and k == 'lancuchy') or (w == 'drums' and k == 'beben') or (w == 'bells' and k in ('dzwony_rurowe', 'dzwony_rurowe_stare', 'dzwonki_reczne', 'dzwonki_tybetanskie', 'gong', 'gong_maly', 'cymbalki', 'dzwoneczki_kadzielnicy', 'kowadlo'))]: del manifest[k]
         globals()[w]()
         json.dump(manifest, open(f'{OUT}/manifest.json', 'w'), indent=0)

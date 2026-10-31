@@ -3,7 +3,21 @@
 for (const t of TEXTS) $('text').appendChild(new Option(t.name, t.id));
 for (const m of MODES) $('mode').appendChild(new Option(m.name, m.id));
 $('text').value = S.text; $('textMode').value = S.textMode; $('style').value = S.style; $('mode').value = S.mode; $('modeMode').value = S.modeMode;
-$('shift').value = S.shift; $('tempo').value = S.tempo;
+$('shift').value = S.shift; $('tempo').value = S.tempo; $('cons').value = S.cons;
+$('cons').onchange = () => { S.cons = $('cons').value; saveState(); };
+// ---------- chords and rhythm ----------
+for (const k of Object.keys(METERS)) $('meter').appendChild(new Option(k, k));
+$('harm').value = S.harm; $('rhythm').value = S.rhythm; $('chords').value = S.chords; $('meter').value = S.meter; $('bpm').value = S.bpm;
+const bpmTxt = () => { $('bpmVal').textContent = S.bpm + ' ćwierćnut/min'; }; bpmTxt();
+const chordVis = () => $('chordBox').classList.toggle('dim', S.harm !== 'wlasne'); chordVis();
+$('harm').onchange = () => { S.harm = $('harm').value; chordVis(); lastChord = null; saveState(); };
+$('rhythm').onchange = () => { S.rhythm = $('rhythm').value; saveState(); if (S.rhythm === 'metrum' && !L.beben.on){ L.beben.on = true; buildLayers(); if (ctx) loadNeeded(); } };
+$('meter').onchange = () => { if (playing){ const now = ctx.currentTime, b = barIndexAt(now) + 1, tb = CLK.t0 + b * barDur(); S.meter = $('meter').value; CLK.t0 = tb - b * barDur(); } else S.meter = $('meter').value; saveState(); };
+$('bpm').oninput = () => { const now = ctx ? ctx.currentTime : 0, pos = ctx && playing ? (now - CLK.t0) / barDur() : 0; S.bpm = +$('bpm').value; if (ctx && playing) CLK.t0 = now - pos * barDur(); bpmTxt(); saveState(); };
+$('applyChords').onclick = () => { const r = setChords($('chords').value); S.harm = 'wlasne'; $('harm').value = 'wlasne'; chordVis(); lastChord = null; saveState();
+  $('chordInfo').textContent = r.list.length ? `${r.list.length} akordów` + (r.bad.length ? ` · nie rozumiem: ${r.bad.join(', ')}` : '') : 'Nie rozpoznałem żadnego akordu'; $('chordInfo').classList.toggle('err', !r.list.length || r.bad.length > 0); };
+for (const k of ['beben', 'dzwony', 'lancuchy', 'semantron']){ const el = $('pat_' + k); el.value = S.pat[k] || ''; el.oninput = () => { S.pat[k] = el.value.trim(); saveState(); }; }
+$('perf').value = PERF.mode; $('perf').onchange = () => { try { localStorage.setItem('pu_perf', $('perf').value); } catch (e){} PERF.mode = $('perf').value; PERF.lite = PERF.mode === 'auto' ? IS_PHONE : PERF.mode === 'lekki'; $('status').textContent = 'Wydajność zmieni się po odświeżeniu aplikacji.'; };
 const shiftTxt = () => { $('shiftVal').textContent = (S.shift > 0 ? '+' : '') + S.shift + ' półt.'; };
 const tempoTxt = () => { $('tempoVal').textContent = S.tempo + ' nut na minutę'; };
 shiftTxt(); tempoTxt();

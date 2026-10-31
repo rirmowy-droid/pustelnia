@@ -2,6 +2,9 @@
 // bells, chains, semantron, desert wind and the two worklet synths (pads, and basses through the tube amp).
 'use strict';
 let MAN = null;
+// performance: 'lite' on phones (light tube amp, fewer voices, shorter reverbs, slower animation)
+const PERF = {mode: 'auto', lite: IS_PHONE};
+try { const pm = localStorage.getItem('pu_perf'); if (pm){ PERF.mode = pm; PERF.lite = pm === 'auto' ? IS_PHONE : pm === 'lekki'; } } catch (e){}
 const buffers = {}, loading = {};
 let ctx = null, master, dryOut, revIn, conv, comp, limiter, preMaster;
 let wieloPad = null, wieloBas = null, lampa = null, cabConv = null, cabDry = null, cabWet = null, workletsOk = false;
@@ -29,7 +32,7 @@ function nearestRoot(key, layer, m){ const L = MAN[key]?.layers?.[layer]; if (!L
 // ======================= graph =======================
 async function initAudio(){
   if (ctx) return;
-  ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: 'playback'});
+  ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: 'playback', sampleRate: PERF.lite ? 32000 : undefined});
   dryOut = ctx.createGain(); revIn = ctx.createGain(); conv = ctx.createConvolver(); conv.normalize = false;
   preMaster = ctx.createGain(); comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 2.2; comp.attack.value = .03; comp.release.value = .4;
   limiter = ctx.createDynamicsCompressor(); limiter.threshold.value = -1.5; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = .002; limiter.release.value = .15;
@@ -44,6 +47,7 @@ async function initAudio(){
     wieloPad = new AudioWorkletNode(ctx, 'wielo', {numberOfInputs: 0, outputChannelCount: [2]}); wieloPad.connect(channelIn('pad'));
     wieloBas = new AudioWorkletNode(ctx, 'wielo', {numberOfInputs: 0, outputChannelCount: [2]});
     buildAmp();
+    if (PERF.lite){ wieloPad.port.postMessage({type: 'maxv', n: 8}); wieloBas.port.postMessage({type: 'maxv', n: 3}); }
   }
   applyMacros();
 }
@@ -51,7 +55,7 @@ async function initAudio(){
 function ampParams(){
   const A = AMP, spk = CAB_SPK[A.cab] || CAB_SPK.kol_4x12_57;
   return Object.assign({gain: A.gain, master: A.master, bass: A.bass, mid: A.mid, treble: A.treble, presence: A.presence, nfb: 0, rectifier: A.rect, noise: A.noise, level: A.level,
-    os: 1, div: IS_PHONE ? 4 : 2, out: .005, marshall: A.stack === 'marshall' ? 1 : 0, channel: A.channel, seed: A.seed}, spk);
+    os: 1, div: 2, out: .005, light: PERF.lite ? 1 : 0, marshall: A.stack === 'marshall' ? 1 : 0, channel: A.channel, seed: A.seed}, spk);
 }
 function buildAmp(){
   if (lampa){ try { wieloBas.disconnect(); lampa.disconnect(); } catch (e){} }
@@ -102,16 +106,20 @@ function choirNote(key, vowel, m, o = {}){
   const file = pick(MAN[key].layers[layer][root]), buf = buffers[key + '/' + file]; if (!buf) return null;
   const s = ctx.createBufferSource(); s.buffer = buf;
   const cents = (Math.random() * 2 - 1) * (o.drift ?? 5);
-  const rate = Math.pow(2, (m - root) / 12 + cents / 1200); s.playbackRate.setValueAtTime(rate, t);
+  const rate = Math.pow(2, (m - root) / 12 + cents / 1200);
+  if (o.fromM !== undefined && o.fromM !== m){ s.playbackRate.setValueAtTime(Math.pow(2, (o.fromM - root) / 12 + cents / 1200), t); s.playbackRate.setTargetAtTime(rate, t, .025); }
+  else s.playbackRate.setValueAtTime(rate, t);
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = .5; lp.frequency.value = (CHOIR_TONE[key] || 4000) * (.55 + vel * .6) * (.75 + M.zar * .5);
   const g = ctx.createGain(); g.gain.value = 0; s.connect(lp); lp.connect(g); g.connect(o.bus);
   const amp = (o.gain ?? 1) * (.45 + .55 * vel) * .55;
   const legato = !!o.legato, off = legato ? Math.min(buf._on + .32 + Math.random() * .2, buf.duration - 1) : buf._on;
   const atk = legato ? (o.xfade ?? .05) : (o.attack ?? .09);
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(amp, t + atk);
-  if (o.slide){ s.playbackRate.setValueAtTime(rate * Math.pow(2, o.slide / 12), t); s.playbackRate.exponentialRampToValueAtTime(rate, t + .07); }
   s.start(t, off);
-  const v = {m, alive: true, t0: t, amp, g, s, lp,
+  const v = {m, alive: true, t0: t, amp, g, s, lp, key, vowel, root, cents, avail: buf.duration - off - .25,
+    canGlide(m2){ return Math.abs(m2 - root) <= 2.5; },
+    glide(m2, at, tau = .03){ this.m = m2; s.playbackRate.setTargetAtTime(Math.pow(2, (m2 - root) / 12 + cents / 1200), at, tau); },
+    endsBy(at){ return at > t + this.avail; },
     release(at, tau = .09){ if (!this.alive) return; this.alive = false; at = Math.max(at, t + atk); if (g.gain.cancelAndHoldAtTime) g.gain.cancelAndHoldAtTime(at); else g.gain.cancelScheduledValues(at);
       g.gain.setTargetAtTime(0, at, tau); try { s.stop(at + tau * 8); } catch (e){} },
     dip(at, depth, len){ g.gain.setValueAtTime(amp, at); g.gain.linearRampToValueAtTime(amp * depth, at + len * .4); g.gain.linearRampToValueAtTime(amp, at + len); } };
@@ -121,7 +129,8 @@ function choirNote(key, vowel, m, o = {}){
 // Latin consonants around the vowels: fricatives and plosives from filtered noise, nasals and liquids as a dark,
 // short closure of the vowel. Spread over a few ms because many singers never land exactly together.
 function consonant(c, t, bus, level, high){
-  if (!c) return;
+  if (!c || S.cons === 'brak') return;
+  const soft = S.cons === 'miekkie';
   const sh = high ? 1.25 : 1;
   for (const ch of c){
     if ('aeiouy'.includes(ch)) continue;
@@ -134,10 +143,11 @@ function consonant(c, t, bus, level, high){
     }[ch];
     if (!spec) continue;
     const [type, f, q, len, lv] = spec;
-    for (let k = 0; k < 3; k++){
+    if (soft && f < 1500) continue;                       // soft mode: only the airy fricatives and plosive bursts
+    for (let k = 0; k < (PERF.lite ? 1 : 2); k++){
       const n = ctx.createBufferSource(); n.buffer = noise(); const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f * sh * rnd(.9, 1.1); fl.Q.value = q;
       const g = ctx.createGain(); n.connect(fl); fl.connect(g); g.connect(bus);
-      const tt = t + k * rnd(.004, .012) - (len > .05 ? len * .5 : 0), a = level * lv * .28 * (k ? .6 : 1);
+      const tt = t + k * rnd(.004, .012) - (len > .05 ? len * .5 : 0), a = level * lv * .28 * (k ? .6 : 1) * (soft ? .45 : 1);
       g.gain.setValueAtTime(0, tt); g.gain.linearRampToValueAtTime(a, tt + Math.min(.012, len * .3)); g.gain.setTargetAtTime(0, tt + len * .6, len * .35);
       n.start(tt, Math.random() * 2); n.stop(tt + len * 3 + .05);
     }
@@ -183,24 +193,35 @@ function hit(key, name, o = {}){
 // Partials of a tuned church bell relative to the strike note: hum (octave below), prime, minor-third tierce,
 // quint, nominal, then the upper partials; every partial is a slightly split doublet, so the bell "warbles".
 const BELL = [[.5, .9, 34], [1, .75, 15], [1.183, .55, 10], [1.506, .25, 6], [2, .9, 7], [2.514, .3, 4], [2.662, .35, 3.5], [3.011, .3, 2.6], [4.166, .2, 1.7], [5.433, .12, 1.1], [6.796, .07, .8]];
-function towerBell(f, o = {}){
-  const t = o.when ?? ctx.currentTime, vel = o.vel ?? .7, size = o.size ?? 1, out = ctx.createGain(); out.gain.value = (o.gain ?? 1) * .09 * (.4 + .6 * vel);
-  if (o.pan !== undefined && ctx.createStereoPanner){ const p = ctx.createStereoPanner(); p.pan.value = o.pan; out.connect(p); p.connect(o.bus); } else out.connect(o.bus);
-  const end = t + 40 * size;
+const bellCache = {};
+function renderBell(f, size){
+  const key = Math.round(f * 2) + '_' + size.toFixed(1);
+  if (bellCache[key]) return bellCache[key];
+  const sr = PERF.lite ? 22050 : 32000, dur = Math.min(PERF.lite ? 9 : 16, 16 * size);
+  const oc = new OfflineAudioContext(1, Math.floor(sr * dur), sr), out = oc.createGain(); out.connect(oc.destination); out.gain.value = .09;
   for (const [r, a, tau] of BELL){
-    const fr = f * r * (1 + (Math.random() * 2 - 1) * .004); if (fr > 15000) continue;
-    for (const split of [-1, 1]){
-      const osc = ctx.createOscillator(); osc.frequency.value = fr * (1 + split * rnd(.0005, .0025)); const g = ctx.createGain();
-      const amp = a * (split > 0 ? rnd(.5, 1) : 1) * (r > 3 ? (.5 + vel * .8) : 1), T = tau * size * (.85 + Math.random() * .3);
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(amp, t + .003 + (r < 1 ? .03 : 0)); g.gain.setTargetAtTime(0, t + .01, T / 4.6);
-      osc.connect(g); g.connect(out); osc.start(t); osc.stop(Math.min(end, t + T * 1.3 + .5));
+    const fr = f * r * (1 + (Math.random() * 2 - 1) * .004); if (fr > sr * .45) continue;
+    for (const split of (PERF.lite && r > 3 ? [1] : [-1, 1])){
+      const osc = oc.createOscillator(); osc.frequency.value = fr * (1 + split * rnd(.0005, .0025)); const g = oc.createGain();
+      const amp = a * (split > 0 ? rnd(.5, 1) : 1), T = tau * size * (.85 + Math.random() * .3);
+      g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(amp, .003 + (r < 1 ? .03 : 0)); g.gain.setTargetAtTime(0, .01, T / 4.6);
+      osc.connect(g); g.connect(out); osc.start(0); osc.stop(dur);
     }
   }
-  // the clapper: a short metallic click
-  const n = ctx.createBufferSource(); n.buffer = noise(); const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f * 4.2; bp.Q.value = 2;
-  const ng = ctx.createGain(); n.connect(bp); bp.connect(ng); ng.connect(out); ng.gain.setValueAtTime(.6 * vel, t); ng.gain.setTargetAtTime(0, t + .002, .012); n.start(t, Math.random()); n.stop(t + .15);
-  glow('dzwon', vel, t);
+  const n = oc.createBufferSource(), nb = oc.createBuffer(1, Math.floor(sr * .15), sr), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (sr * .012));
+  n.buffer = nb; const bp = oc.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = Math.min(sr * .45, f * 4.2); bp.Q.value = 2; const ng = oc.createGain(); ng.gain.value = .6;
+  n.connect(bp); bp.connect(ng); ng.connect(out); n.start(0);
+  return (bellCache[key] = oc.startRendering().then(b => { bellCache[key] = b; return b; }));
 }
+function towerBell(f, o = {}){
+  const size = Math.round((o.size ?? 1) * 5) / 5, b = renderBell(f, size);
+  if (b instanceof Promise) return;                         // first strike of a new pitch is being prepared; it rings next time
+  const t = o.when ?? ctx.currentTime, vel = o.vel ?? .7, s = ctx.createBufferSource(), g = ctx.createGain();
+  s.buffer = b; g.gain.value = (o.gain ?? 1) * (.4 + .6 * vel); s.connect(g);
+  if (o.pan !== undefined && ctx.createStereoPanner){ const p = ctx.createStereoPanner(); p.pan.value = o.pan; g.connect(p); p.connect(o.bus); } else g.connect(o.bus);
+  s.start(t); glow('dzwon', vel, t);
+}
+function prepareBells(md, fin){ for (const d of [7, 4, 2, 0, -3]) for (const sz of [.7, .8, 1, 1.2]) renderBell(mtof(degMidi(md, fin, d, false)), Math.round(sz * 5) / 5); }
 // semantron: a long wooden board struck with a mallet (Eastern monasteries, Sinai). Where it is hit sets the pitch.
 function semantron(o = {}){
   const t = o.when ?? ctx.currentTime, pos = o.pos ?? .5, vel = o.vel ?? .7, out = ctx.createGain(); out.gain.value = (o.gain ?? 1) * 2.2 * (.4 + .6 * vel); out.connect(o.bus);

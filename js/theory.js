@@ -200,3 +200,38 @@ function organumLine(mode, fin, notes, interval){
   }
   return out;
 }
+
+// ======================= own chords and meters =======================
+const PC = {C:0, D:2, E:4, F:5, G:7, A:9, B:10, H:11};   // B = B flat (Polish), H = B natural; also Bb, A#, ...
+const QUAL = [   // longest first
+  ['maj7', [0,4,7,11]], ['m7b5', [0,3,6,10]], ['add9', [0,4,7,14]], ['madd9', [0,3,7,14]], ['sus2', [0,2,7]], ['sus4', [0,5,7]], ['dim7', [0,3,6,9]],
+  ['dim', [0,3,6]], ['aug', [0,4,8]], ['m9', [0,3,7,10,14]], ['m7', [0,3,7,10]], ['m6', [0,3,7,9]], ['9', [0,4,7,10,14]], ['7', [0,4,7,10]],
+  ['6', [0,4,7,9]], ['5', [0,7]], ['m', [0,3,7]], ['sus', [0,5,7]], ['', [0,4,7]],
+];
+function parseChord(tok){
+  const m = tok.match(/^([A-Ha-h])(#|b|is|es)?(.*)$/); if (!m) return null;
+  let root = PC[m[1].toUpperCase()]; if (root === undefined) return null;
+  if (m[2] === '#' || m[2] === 'is') root += 1; if (m[2] === 'b' || m[2] === 'es') root -= 1;
+  let rest = m[3]; if (m[1] === m[1].toLowerCase() && !rest.startsWith('m')) rest = 'm' + rest;   // small letter = minor (d, a, e)
+  const q = QUAL.find(([k]) => rest === k) || QUAL.find(([k]) => k && rest.startsWith(k)); if (!q) return null;
+  return {root: (root + 12) % 12, ivs: q[1], pcs: [...new Set(q[1].map(i => (root + i + 12) % 12))], name: tok};
+}
+// "Dm F C:2 | B A7 %"  ->  [{chord, bars}] ; ':2' = two bars, ':.5' = half a bar, '%' repeats the previous
+function parseProgression(txt){
+  const out = [], bad = [];
+  for (let tok of txt.replace(/\|/g, ' ').split(/\s+/).filter(Boolean)){
+    let bars = 1; const mm = tok.match(/^(.*?):([\d.]+)$/); if (mm){ tok = mm[1]; bars = +mm[2] || 1; }
+    if (tok === '%'){ if (out.length) out.push({...out[out.length - 1], bars}); continue; }
+    const c = parseChord(tok); if (c) out.push({chord: c, bars}); else bad.push(tok);
+  }
+  return {list: out, bad};
+}
+// eighth-note groups of a bar
+const METERS = {'2/4': [2,2], '3/4': [2,2,2], '4/4': [2,2,2,2], '5/4': [2,2,2,2,2], '6/8': [3,3], '7/8': [2,2,3], '5/8': [3,2], '9/8': [3,3,3], '12/8': [3,3,3,3], '7/4': [2,2,2,2,2,2,2]};
+// the pitch classes of the mode (on its finalis) bent so the chord's own notes are in it
+function chordScale(mode, fin, chord){
+  const sc = []; for (let d = 0; d < 7; d++) sc.push(((degMidi(mode, fin, d, false)) % 12 + 12) % 12);
+  for (const pc of chord.pcs) if (!sc.includes(pc)){ let best = 0, bd = 9; sc.forEach((x, i) => { const dd = Math.min((x - pc + 12) % 12, (pc - x + 12) % 12); if (dd < bd){ bd = dd; best = i; } }); sc[best] = pc; }
+  return sc;
+}
+function snapTo(m, pcs){ for (let d = 0; d <= 6; d++){ for (const s of [m - d, m + d]) if (pcs.includes(((s % 12) + 12) % 12)) return s; } return m; }

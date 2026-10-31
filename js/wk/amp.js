@@ -12,7 +12,7 @@ const grand = () => Math.sqrt(-2 * Math.log(urand() + 1e-12)) * Math.cos(6.28318
 const GT = new Float32Array(16384); for (let i = 0; i < GT.length; i++) GT[i] = Math.sqrt(-2 * Math.log(Math.random() + 1e-12)) * Math.cos(6.283185307 * Math.random());
 let GI = 0x9e3779b9 | 0; const fgauss = () => { GI ^= GI << 13; GI ^= GI >>> 17; GI ^= GI << 5; return GT[(GI >>> 0) & 16383]; };
 const tol = (v, pct, sc) => v * (1 + pct * sc * grand() * .5);
-function ax7(sc){ return {mu: tol(100, .06, sc), ex: 1.4, kg1: tol(1060, .25, sc), kp: 600, kvb: 300}; }
+function ax7(sc){ return {mu: 100, ex: 1.4, kg1: tol(1060, .3, sc), kp: 600, kvb: 300}; }   // mu spread folded into kg1 (shared table)
 // tube current from a per-tube table (bilinear): 0..500 V plate, -12..+8 V grid; outside it the formula
 const TV0 = 0, TV1 = 500, TDV = 1, TG0 = -12, TG1 = 8, TDG = .05, TNV = 501, TNG = 401;
 function triodeF(t, vpk, vgk){
@@ -21,13 +21,14 @@ function triodeF(t, vpk, vgk){
   let e1 = e > 30 ? e : Math.log1p(Math.exp(e)); e1 = vpk / t.kp * e1;
   return e1 > 0 ? Math.pow(e1, t.ex) / t.kg1 : 0;
 }
-function buildTab(t){ const T = new Float32Array(TNV * TNG); for (let i = 0; i < TNV; i++) for (let j = 0; j < TNG; j++) T[i * TNG + j] = triodeF(t, TV0 + i * TDV, TG0 + j * TDG); t.tab = T; }
+const NOM = {mu: 100, ex: 1.4, kg1: 1060, kp: 600, kvb: 300}; let TAB = null;
+function buildTab(){ const T = new Float32Array(TNV * TNG); for (let i = 0; i < TNV; i++) for (let j = 0; j < TNG; j++) T[i * TNG + j] = triodeF(NOM, TV0 + i * TDV, TG0 + j * TDG); TAB = T; }
 function triode(t, vpk, vgk){
   if (vpk < 0) vpk = 0;
   if (vpk < TV1 && vgk > TG0 && vgk < TG1){
-    if (!t.tab) buildTab(t);
-    const x = (vpk - TV0) / TDV, y = (vgk - TG0) / TDG, i = x | 0, j = y | 0, fx = x - i, fy = y - j, T = t.tab, k = i * TNG + j;
-    return (T[k] * (1 - fy) + T[k + 1] * fy) * (1 - fx) + (T[k + TNG] * (1 - fy) + T[k + TNG + 1] * fy) * fx;
+    if (!TAB) buildTab();
+    const x = (vpk - TV0) / TDV, y = (vgk - TG0) / TDG, i = x | 0, j = y | 0, fx = x - i, fy = y - j, T = TAB, k = i * TNG + j;
+    return ((T[k] * (1 - fy) + T[k + 1] * fy) * (1 - fx) + (T[k + TNG] * (1 - fy) + T[k + TNG + 1] * fy) * fx) * (1060 / t.kg1);
   }
   return triodeF(t, vpk, vgk);
 }
@@ -148,7 +149,7 @@ class Amp {
     this.up = 0; this.lp1 = 0; this.lp2 = 0; this._r0 = new Float64Array(3); this._r = new Float64Array(3); this._J = [new Float64Array(3), new Float64Array(3), new Float64Array(3)];
     this.div = Math.max(1, p.div || 1); this.acc = 0; this.cnt = 0; this.yPrev = 0; this.yCur = 0;
     this.fs = fs = fsBase * os / this.div; this.T = 1 / this.fs; this.setTone(); this.gW = 2 * (.6e-9 * 4 * a * a) / this.T;
-    for (let k = 0; k < .5 * this.fs; k++) this.step(0);   // power up and settle
+    for (let k = 0; k < .2 * this.fs; k++) this.step(0);   // power up and settle
   }
   setTone(){ const p = this.p; this.ts = toneStack(this.fs, p.treble, p.mid, p.bass, p.marshall, this.sc); this.tx = [0, 0, 0]; this.ty = [0, 0, 0]; }
   step(sig){
@@ -258,13 +259,98 @@ class Amp {
     this.lp1 += .6 * (y - this.lp1); return this.lp1 * p.out;
   }
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// "Lekki" – the same circuit reduced to what a phone can run at full rate (~1 µs per sample): every triode
+// stage is its static transfer curve from the same Koren tube (table) with its coupling cap, grid-current
+// bias shift (blocking) and Miller pole; the tone stack is the exact one; the phase inverter and the EL84
+// pair use the same pentode tables with cathode-bias drift and supply sag; the transformer and the speaker
+// are a high-pass, flux saturation and the speaker's resonance bump.
+class StageL {
+  constructor(B, Ra, Rk, Cc, Rl, Cm, fs, Ck){
+    // partly bypassed cathode: full gain above 1/(2 pi Rk Ck), the degenerated gain below it (shelf before the curve)
+    this.gL = Ck ? 1 / (1 + Rk * 1.6e-3 * 1.2) : 1 / (1 + Rk * 1.6e-3 * 1.2); this.gL = Ck ? this.gL : 1; this.unb = Ck ? 1 : 1 / (1 + Rk * 1.6e-3 * 1.2);
+    this.sha = Ck ? 1 - Math.exp(-2 * Math.PI / (2 * Math.PI * Rk * Ck) / fs) : 0; this.shl = 0;
+    // DC operating point and the static curve Vp(vg) with the cathode held at its DC voltage (bypassed)
+    const t = NOM; let vp = B * .6, vk = 1;
+    for (let i = 0; i < 3000; i++){ const ip = triodeF(t, vp - vk, -vk); vp = .95 * vp + .05 * (B - ip * Ra); vk = .95 * vk + .05 * ip * Rk; }
+    this.vk = vk; this.dc = vp; this.N = 1201; this.lo = -8; this.hi = 4; this.tab = new Float32Array(this.N);
+    for (let i = 0; i < this.N; i++){ const vg = this.lo + (this.hi - this.lo) * i / (this.N - 1); let p = vp;
+      for (let it = 0; it < 60; it++){ const f = (B - p) / Ra - triodeF(t, p - vk, vg - vk), d = f / (-1 / Ra - (triodeF(t, p + .01 - vk, vg - vk) - triodeF(t, p - vk, vg - vk)) / .01); p -= Math.max(-30, Math.min(30, d)); if (Math.abs(d) < 1e-6) break; }
+      this.tab[i] = p - vp; }
+    this.hp = Math.exp(-1 / (fs * Cc * Rl)); this.x1 = 0; this.y1 = 0; this.bias = 0; this.lp = 0;
+    this.lpa = 1 - Math.exp(-2 * Math.PI * Math.min(fs * .45, 1 / (2 * Math.PI * 68e3 * Cm * 60)) / fs);
+    this.blk = 1 - Math.exp(-1 / (fs * .002)); this.rel = 1 - Math.exp(-1 / (fs * Cc * Rl * 3));
+  }
+  tick(x){
+    const y = this.hp * (this.y1 + x - this.x1); this.x1 = x; this.y1 = y;          // coupling cap
+    this.lp += this.lpa * (y - this.lp);                                               // Miller pole
+    let v = this.lp; if (this.sha){ this.shl += this.sha * (v - this.shl); v = v - this.shl * (1 - this.gL); } else v *= this.unb;
+    let vg = v + this.bias;
+    if (vg > 0){ this.bias -= vg * this.blk; vg *= .25; }                              // grid conducts: clamps and charges the cap
+    else this.bias -= this.bias * this.rel;
+    const u = (vg - this.lo) / (this.hi - this.lo) * (this.N - 1);
+    if (u <= 0) return this.tab[0]; if (u >= this.N - 1) return this.tab[this.N - 1];
+    const i = u | 0, f = u - i; return this.tab[i] * (1 - f) + this.tab[i + 1] * f;
+  }
+}
+class AmpLight {
+  constructor(prm, fs){
+    const p = this.p = Object.assign({}, DEF, prm); this.fs = fs; this.T = 1 / fs;
+    this.s1 = new StageL(250, 100e3, 1500, 1e-6, 1e6, 1.6e-12, fs, 22e-6);
+    this.s2 = new StageL(250, 100e3, p.channel ? 10e3 : 820, 22e-9, 1e6, 1.7e-12, fs, p.channel ? 0 : .68e-6);
+    this.s3 = p.channel ? new StageL(250, 100e3, 820, 22e-9, 470e3, 1.7e-12, fs, .68e-6) : null;
+    this.sc = 0; this.setTone(); this.vb = 0; this.bs = 0;
+    this.Bnom = p.mains * .9; this.B = this.Bnom; this.Vk = p.cathode ? 9 : 0; this.cb = [0, 0];
+    this.Rsup = p.rectifier === 0 ? 40 : p.rectifier === 1 ? 140 : 300;
+    this.a = Math.sqrt(p.raa / 32); const ip = penP(-7.3, 250); this.kg1 = [ip / .048 * (1 + .08 * grand()), ip / .048 * (1 + .08 * grand())];
+    this.hpo = 0; this.hpx = 0; this.flux = 0; this.bz1 = 0; this.bz2 = 0; this.out1 = 0;
+    const f0 = Math.sqrt(p.Kms / p.Mms) / (2 * Math.PI), Q = Math.sqrt(p.Kms * p.Mms) / (p.Rms + p.Bl * p.Bl / p.Re);
+    const w = 2 * Math.PI * f0 / fs, al = Math.sin(w) / (2 * Q); this.rb = {b0: al, b2: -al, a0: 1 + al, a1: -2 * Math.cos(w), a2: 1 - al};
+    this.bump = Math.min(4, (p.Bl * p.Bl / p.Rms) / p.Re); this.r1 = 0; this.r2 = 0; this.ry1 = 0; this.ry2 = 0;
+  }
+  setTone(){ const p = this.p; this.ts = toneStack(this.fs, p.treble, p.mid, p.bass, p.marshall, 0); this.tx = [0, 0, 0]; this.ty = [0, 0, 0]; }
+  tick(x){
+    const p = this.p, T = this.T;
+    let o = this.s1.tick(x * p.level + (p.noise ? fgauss() * 2e-6 * p.noise : 0));
+    { const gpot = gainTaper(p.gain), Rt = (1 - gpot) * 1e6 + 1e3, Rb = gpot * 1e6 + 1e3, C = p.bright > 0 ? 470e-12 : 1e-18, c = 2 * this.fs;
+      const b0 = Rb * (1 + c * Rt * C), b1 = Rb * (1 - c * Rt * C), a0 = Rb + Rt + c * Rt * Rb * C, a1 = Rb + Rt - c * Rt * Rb * C;
+      this.vb = (b0 * o + b1 * this.bs - a1 * this.vb) / a0; this.bs = o; }
+    o = this.s2.tick(this.vb); if (this.s3) o = this.s3.tick(o * .8);
+    o = o > 60 ? 60 + (o - 60) * .15 : o < -110 ? -110 + (o + 110) * .15 : o;           // cathode follower limits
+    const ts = this.ts, st = ts.b[0] * o + ts.b[1] * this.tx[0] + ts.b[2] * this.tx[1] + ts.b[3] * this.tx[2] - ts.a[1] * this.ty[0] - ts.a[2] * this.ty[1] - ts.a[3] * this.ty[2];
+    this.tx[2] = this.tx[1]; this.tx[1] = this.tx[0]; this.tx[0] = o; this.ty[2] = this.ty[1]; this.ty[1] = this.ty[0]; this.ty[0] = st;
+    // phase inverter (differential gain ~25, its own soft limit) -> EL84 grids through coupling caps with blocking
+    const d = (p.piGain ?? 7) * st * audioTaper(p.master), pi = 120 * Math.tanh(d / 120);
+    let g = [pi + this.cb[0], -pi + this.cb[1]];
+    for (let k = 0; k < 2; k++){ const vgk = g[k] - this.Vk; if (vgk > 0){ this.cb[k] -= vgk * .02; g[k] = this.Vk + vgk * .1; } else this.cb[k] *= .9995; }
+    const bias = p.cathode ? 0 : p.bias;
+    const ipa = pentode(this.B, bias + g[0] - this.Vk, this.B - 10 - this.Vk, this.kg1[0]), g2a = PEN.ig2;
+    const ipb = pentode(this.B, bias + g[1] - this.Vk, this.B - 10 - this.Vk, this.kg1[1]), g2b = PEN.ig2;
+    let V = this.a * (ipa - ipb) * p.Re;
+    // speaker resonance raises the load (and the voltage) around Fs
+    const rb = this.rb, r = (rb.b0 * V + rb.b2 * this.r2 - rb.a1 * this.ry1 - rb.a2 * this.ry2) / rb.a0; this.r2 = this.r1; this.r1 = V; this.ry2 = this.ry1; this.ry1 = r;
+    V += r * this.bump;
+    const Vmax = Math.max(20, (this.B - 25 - this.Vk) / this.a); V = Vmax * Math.tanh(V / Vmax);   // plates bottom out
+    // transformer: low-frequency flux saturation and the magnetising high-pass
+    this.flux = this.flux * .9995 + V * T; const fs_ = p.fluxSat * 2; if (Math.abs(this.flux) > fs_) V *= fs_ / Math.abs(this.flux);
+    const hp = .997 * (this.hpo + V - this.hpx); this.hpx = V; this.hpo = hp;
+    // supply sag and cathode-bias drift
+    const itot = ipa + ipb + g2a + g2b;
+    this.B += T / (p.reservoir * 1e-6) * ((this.Bnom - this.B) / this.Rsup - itot + .07);
+    if (p.cathode) this.Vk += T / 250e-6 * (itot - this.Vk / 130);
+    this.out1 += .5 * (hp - this.out1);
+    return this.out1 * p.out * .68;
+  }
+}
 class Lampa extends AudioWorkletProcessor {
   constructor(opt){
     super(); const o = (opt && opt.processorOptions) || {};
-    this.amp = new Amp(o.params || {}, sampleRate); this.bypass = false; this.load = 0;
+    const mk = pp => (pp.light ? new AmpLight(pp, sampleRate) : new Amp(pp, sampleRate));
+    this.mk = mk; this.amp = mk(o.params || {}); this.bypass = false; this.load = 0;
     this.port.onmessage = ev => { const m = ev.data;
       if (m.type === 'set'){ Object.assign(this.amp.p, m.params); if ('bass' in m.params || 'mid' in m.params || 'treble' in m.params || 'marshall' in m.params) this.amp.setTone(); }
-      else if (m.type === 'rebuild'){ this.amp = new Amp(Object.assign({}, this.amp.p, m.params), sampleRate); }
+      else if (m.type === 'rebuild'){ this.amp = this.mk(Object.assign({}, this.amp.p, m.params)); }
       else if (m.type === 'bypass') this.bypass = !!m.on; };
   }
   process(inputs, outputs){

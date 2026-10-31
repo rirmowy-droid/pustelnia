@@ -7,7 +7,7 @@ const MX = {
     mnisi: {...MX_CH, hpf: 70, rev: .75, comp: .25}, ison: {...MX_CH, hpf: 50, rev: .7, pan: -.12}, dzieci: {...MX_CH, hpf: 160, rev: .85, high: 1, pan: .15},
     organy: {...MX_CH, hpf: 30, rev: .85}, bas: {...MX_CH, hpf: 28, rev: .25, comp: .3}, pad: {...MX_CH, hpf: 90, rev: .7},
     dzwony: {...MX_CH, hpf: 40, rev: 1, pan: -.1}, lancuchy: {...MX_CH, hpf: 120, rev: .6, pan: .2}, kadzielnica: {...MX_CH, hpf: 200, rev: .55, pan: .3},
-    semantron: {...MX_CH, hpf: 90, rev: .7, pan: -.3}, wiatr: {...MX_CH, hpf: 60, rev: .3},
+    semantron: {...MX_CH, hpf: 90, rev: .7, pan: -.3}, wiatr: {...MX_CH, hpf: 60, rev: .3}, beben: {...MX_CH, hpf: 45, rev: .45, comp: .3},
   },
   master: {space: 'kaplica', spaceMix: .65, low: 0, mid: 0, midF: 1500, high: 0, comp: .35},
 };
@@ -20,8 +20,8 @@ async function loadIR(id){
   if (!irBuf[id]) irBuf[id] = decode(meta.file).then(b => { // drop the codec's leading silence, keep unit energy
     const d = b.getChannelData(0); let mx = 0; for (let i = 0; i < Math.min(d.length, b.sampleRate); i++) mx = Math.max(mx, Math.abs(d[i]));
     let s = 0; while (s < d.length && Math.abs(d[s]) < mx * .02) s++; s = Math.max(0, s - 4);
-    const n = b.length - s, out = ctx.createBuffer(b.numberOfChannels, n, b.sampleRate), g = meta.gain || 1;
-    for (let c = 0; c < b.numberOfChannels; c++){ const src = b.getChannelData(c).subarray(s), o = new Float32Array(n); for (let i = 0; i < n; i++) o[i] = src[i] * g; out.copyToChannel(o, c); }
+    const n = Math.min(b.length - s, Math.floor((PERF.lite ? 3 : 7) * b.sampleRate)), out = ctx.createBuffer(b.numberOfChannels, n, b.sampleRate), g = meta.gain || 1, fade = Math.floor(.4 * b.sampleRate);
+    for (let c = 0; c < b.numberOfChannels; c++){ const src = b.getChannelData(c).subarray(s), o = new Float32Array(n); for (let i = 0; i < n; i++) o[i] = src[i] * g * (i > n - fade ? (n - i) / fade : 1); out.copyToChannel(o, c); }
     return out; });
   return irBuf[id];
 }

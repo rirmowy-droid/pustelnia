@@ -44,15 +44,41 @@
         <label class="fld full">Skala kościelna (modus)<select id="mode"></select></label>
         <label class="fld">Zmiana modusu<select id="modeMode"><option value="stały">Stały</option><option value="losowy">Losowy co tekst</option></select></label>
         <label class="fld">Wysokość <span id="shiftVal"></span><input type="range" id="shift" min="-5" max="5" step="1" value="0"></label>
-        <label class="fld full">Tempo <span id="tempoVal"></span><input type="range" id="tempo" min="80" max="240" value="150"></label>
+        <label class="fld full">Tempo śpiewu (swobodny rytm) <span id="tempoVal"></span><input type="range" id="tempo" min="80" max="240" value="150"></label>
+        <label class="fld full">Spółgłoski<select id="cons"><option value="brak">Wyłączone – płynne samogłoski (legato)</option><option value="miekkie">Delikatne (tylko s, t, k, c…)</option><option value="pelne">Pełne</option></select></label>
       </div>
       <div class="note">Melodie powstają na bieżąco według reguł chorału: finalis, ton recytacyjny, ambitus modusu, neumy, intonacja i kadencja. Nic nie jest kopiowane z istniejących śpiewów.</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Akordy i rytm</div>
+      <div class="grid2">
+        <label class="fld">Harmonia<select id="harm"><option value="modus">Z modusu (automatycznie)</option><option value="wlasne">Własne akordy</option></select></label>
+        <label class="fld">Rytm<select id="rhythm"><option value="swobodny">Swobodny (jak chorał)</option><option value="metrum">W metrum</option></select></label>
+        <div class="fld full" id="chordBox">Własne akordy (każdy trwa takt)
+          <textarea id="chords" spellcheck="false" placeholder="np. Dm C Dm:2 | F C Dm:2"></textarea>
+          <div class="note">Akordy oddzielone spacją. <b>:2</b> = dwa takty, <b>:.5</b> = pół taktu, <b>%</b> powtarza poprzedni. Rozumiem m, 5, 6, 7, m7, maj7, 9, m9, sus2, sus4, dim, aug, add9. B = B♭, H = H; mała litera = moll (d = Dm). Melodia, ison, organy, bas i syntezatory idą za akordami.</div>
+          <div class="row2"><button class="btn" id="applyChords">Graj te akordy</button><span class="note" id="chordInfo"></span></div>
+        </div>
+        <label class="fld">Metrum<select id="meter"></select></label>
+        <label class="fld">Tempo taktu <span id="bpmVal"></span><input type="range" id="bpm" min="30" max="180" value="72"></label>
+        <div class="fld full">Wzory rytmu (każdy znak to ósemka: <b>x</b> mocno, <b>o</b> cicho, <b>.</b> pauza; wzór krótszy lub dłuższy niż takt przesuwa się względem taktów)
+          <div class="pats">
+            <label>Bęben ramowy<input type="text" id="pat_beben" spellcheck="false"></label>
+            <label>Dzwony (puste = same, swobodnie)<input type="text" id="pat_dzwony" spellcheck="false"></label>
+            <label>Łańcuchy (puste = same)<input type="text" id="pat_lancuchy" spellcheck="false"></label>
+            <label>Semantron (puste = wezwania między tekstami)<input type="text" id="pat_semantron" spellcheck="false"></label>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="card">
       <div class="label">Warstwy</div>
       <div class="layers" id="layers"></div>
       <div class="row2">Głośność całości <input type="range" id="vol" min="0" max="100" value="80"></div>
+      <label class="fld" style="margin-top:10px">Wydajność<select id="perf"><option value="auto">Automatycznie (telefon = lekko)</option><option value="lekki">Lekko – dla telefonu</option><option value="pelny">Pełna jakość</option></select></label>
+      <div class="note">Lekko: wzmacniacz w wersji uproszczonej, mniej głosów syntezatora, krótsze pogłosy, wolniejsza animacja. Zmiana działa po ponownym uruchomieniu (▶).</div>
     </div>
 
     <div class="card">

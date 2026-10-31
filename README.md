@@ -8,6 +8,13 @@ Generatywna aplikacja muzyczna w klimacie klasztorno-pustynnym: chorał gregoria
 - `ir/` – przestrzenie: policzone z geometrii (jaskinia, kaplica, krypta, bazylika, cysterna, dziedziniec, kanion, wydmy), prawdziwe nagrania miejsc i kolumny głośnikowe policzone z fizyki.
 - `narzedzia/` – skrypty, którymi przygotowano sample, przestrzenie i ikonę.
 
+## Akordy, rytm, wydajność
+
+- **Własne akordy** (karta „Akordy i rytm”): np. `Dm C Dm:2 | F C Dm:2`. Melodia chorału jest naginana do skali akordu, a mocne sylaby lądują na dźwiękach akordu; ison, organy, bas i syntezatory idą za akordami.
+- **Rytm**: swobodny (jak chorał) albo w metrum (2/4 … 12/8, 7/8, 5/8) z tempem taktu. Wzory rytmu dla bębna ramowego, dzwonów, łańcuchów i semantronu: `x` mocno, `o` cicho, `.` pauza, każdy znak to ósemka.
+- **Spółgłoski**: wyłączone (płynne legato samogłosek), delikatne albo pełne.
+- **Wydajność**: na telefonie automatycznie tryb lekki – uproszczony wzmacniacz lampowy (te same lampy, krzywe i barwa, bez rozwiązywania całego układu co próbkę), mniej głosów syntezatora, krótsze pogłosy, dzwony liczone raz do bufora, 32 kHz, wolniejsza animacja.
+
 ## Jak to działa
 
 | Plik | Co tam jest |

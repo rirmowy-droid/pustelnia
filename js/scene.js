@@ -71,7 +71,7 @@ function frame(){
   dune(.88, .035, 3, 2.4, `rgb(${col([212, 150, 88], [56, 40, 56], night)})`);
   dune(.95, .03, 5, 4, `rgb(${col([196, 132, 76], [44, 32, 46], night)})`);
   // sand blown by the wind
-  const windOn = L.wiatr?.on; const want = windOn ? 90 + M.zar * 90 : 10;
+  const windOn = L.wiatr?.on; const want = (windOn ? 90 + M.zar * 90 : 10) * (PERF.lite ? .4 : 1);
   while (sand.length < want) sand.push({x: Math.random() * W, y: H * (.7 + Math.random() * .3), v: rnd(.5, 1.6), l: rnd(4, 14)});
   g2.strokeStyle = `rgba(${col([255, 226, 170], [180, 160, 170], night)},.35)`; g2.lineWidth = 1; g2.beginPath();
   for (let i = sand.length - 1; i >= 0; i--){ const p = sand[i]; p.x += p.v * (2 + Math.sin(tm * .3) * 1.5); p.y += Math.sin(tm + p.x * .01) * .2; g2.moveTo(p.x, p.y); g2.lineTo(p.x - p.l, p.y + .5);
@@ -79,5 +79,5 @@ function frame(){
   g2.stroke();
   for (const k in GL) GL[k] *= .93;
 }
-let lastF = 0; function loop(ts){ if (ts - lastF > 40){ lastF = ts; frame(); } requestAnimationFrame(loop); }
+let lastF = 0; function loop(ts){ if (ts - lastF > (PERF.lite ? 90 : 40)){ lastF = ts; frame(); } requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
