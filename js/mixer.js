@@ -7,7 +7,7 @@ const MX = {
     mnisi: {...MX_CH, hpf: 70, rev: .75, comp: .25}, ison: {...MX_CH, hpf: 50, rev: .7, pan: -.12}, dzieci: {...MX_CH, hpf: 160, rev: .85, high: 1, pan: .15},
     organy: {...MX_CH, hpf: 30, rev: .85}, bas: {...MX_CH, hpf: 28, rev: .25, comp: .3}, pad: {...MX_CH, hpf: 90, rev: .7},
     dzwony: {...MX_CH, hpf: 40, rev: 1, pan: -.1}, lancuchy: {...MX_CH, hpf: 120, rev: .6, pan: .2}, kadzielnica: {...MX_CH, hpf: 200, rev: .55, pan: .3},
-    semantron: {...MX_CH, hpf: 90, rev: .7, pan: -.3}, wiatr: {...MX_CH, hpf: 60, rev: .3}, beben: {...MX_CH, hpf: 45, rev: .45, comp: .3},
+    semantron: {...MX_CH, hpf: 90, rev: .7, pan: -.3}, wiatr: {...MX_CH, hpf: 60, rev: .3}, beben: {...MX_CH, hpf: 45, rev: .45, comp: .3}, drone: {...MX_CH, hpf: 35, rev: .8, comp: .2},
   },
   master: {space: 'kaplica', spaceMix: .65, low: 0, mid: 0, midF: 1500, high: 0, comp: .35},
 };

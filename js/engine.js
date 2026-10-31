@@ -3,7 +3,7 @@
 // semantron, frame drum and the desert wind. Free chant rhythm or a meter; harmony from the mode or own chords.
 // Every setting in S, L and AMP is read live.
 'use strict';
-const S = {text: 'pustynia', textMode: 'kolejno', mode: 1, modeMode: 'stały', shift: 0, tempo: 150, style: 'mieszany', cons: 'brak',
+const S = {text: 'pustynia', textMode: 'kolejno', mode: 1, modeMode: 'stały', shift: 0, tempo: 150, style: 'mieszany', cons: 'brak', sing: 'wokaliza', vowel: 'a',
   harm: 'modus', chords: 'Dm C Dm:2 | F C Dm:2', rhythm: 'swobodny', meter: '4/4', bpm: 72,
   pat: {beben: 'x..ox.o.', dzwony: '', lancuchy: '', semantron: ''}};
 const LAYER_DEF = [
@@ -18,6 +18,7 @@ const LAYER_DEF = [
   {id: 'lancuchy', name: 'Łańcuchy', opts: [['rzadko', 'Rzadkie uderzenia'], ['czesto', 'Częste uderzenia i wleczenie']], def: 'rzadko', vol: .7},
   {id: 'kadzielnica', name: 'Kadzielnica', opts: [['tak', 'Kołysanie na łańcuszkach z dzwoneczkami']], def: 'tak', vol: .35, on: false},
   {id: 'semantron', name: 'Semantron (kołatka)', opts: [['tak', 'Drewniana deska – wezwanie na modlitwę']], def: 'tak', vol: .5},
+  {id: 'drone', name: 'Drone (trzymany ton)', opts: [['chor', 'Chór mnichów – finalis i kwinta, oddechy na zmianę'], ['synt', 'Syntezator – wiele oscylatorów'], ['organy', 'Organy – burdon'], ['wszystko', 'Wszystko razem']], def: 'chor', vol: .55, on: false},
   {id: 'wiatr', name: 'Wiatr pustyni', opts: [['tak', 'Wiatr, piasek, świst w skałach']], def: 'tak', vol: .35},
 ];
 const L = {};
@@ -83,11 +84,13 @@ function stopEngine(){
   for (const k in LINE){ if (LINE[k]) LINE[k].forEach(v => v && v.release(t, .3)); LINE[k] = null; }
   organHeld.forEach(v => v && v.release(t)); organHeld = []; if (bassHeld){ bassHeld.off(t); bassHeld = null; } padHeld.forEach(v => v.off(t)); padHeld = [];
   if (wieloBas) wieloBas.port.postMessage({type: 'panic'}); if (wieloPad) wieloPad.port.postMessage({type: 'panic'});
+  droneStop(t);
 }
 function tick(){
   if (!playing) return; const now = ctx.currentTime;
   while (CLK.t0 + nextBar * barDur() < now + 1.2){ bar(nextBar, CLK.t0 + nextBar * barDur()); nextBar++; }
   while (nextAt < now + 1.2){ nextAt = phrase(nextAt); }
+  droneTick(now);
   Q.sort((a, b) => a.t - b.t);
   while (Q.length && Q[0].t < now + .25){ const e = Q.shift(); try { e.fn(Math.max(e.t, now + .005)); } catch (err){ console.error(err); } }
 }
@@ -139,7 +142,8 @@ function phrase(t0){
   if (!SEC || SEC.i >= SEC.lines.length){ const wasSec = !!SEC; if (wasSec) t0 = interlude(t0); newSection(); }
   const metr = S.rhythm === 'metrum';
   if (metr) t0 = nextStepAt(t0);
-  const md = SEC.mode, fin = SEC.fin, line = SEC.lines[SEC.i], li = SEC.i, last = li === SEC.lines.length - 1;
+  const md = SEC.mode, fin = SEC.fin, li = SEC.i, last = li === SEC.lines.length - 1;
+  const line = S.sing === 'wokaliza' ? vocaliseLine(SEC.lines[SEC.i], li) : SEC.lines[SEC.i];
   const kind = SEC.psalm ? 'psalm' : (S.style === 'mieszany' && chance(.25) ? 'psalm' : 'arch');
   const notes = makePhrase(md, line, {density: M.gest * .85, kind, end: last || chance(.55) ? 'final' : 'half'});
   const N = notes.length, times = []; let tt = t0;
@@ -220,7 +224,7 @@ function modalAccompaniment(t0, end, notes, times, line, md, fin, P, N){
 // note to note; a new vowel crossfades in (~0.1 s, like a singer changing the mouth shape); a sample that runs
 // out hands over to a fresh one under a long crossfade; consonants (optional) are laid between the vowels.
 function singLine(role, key, pitches, notes, times, line, o = {}){
-  const from = o.from ?? 0, bus = ch(role), cons = S.cons !== 'brak';
+  const from = o.from ?? 0, bus = ch(role), cons = S.cons !== 'brak' && !line.vocalise;
   let prevSi = -1;
   for (let j = from; j < notes.length; j++){
     const n = notes[j], [t, d] = times[j], sy = line.syl[n.si], newSyl = n.si !== prevSi, first = j === from;
@@ -232,14 +236,14 @@ function singLine(role, key, pitches, notes, times, line, o = {}){
       const alive = !first && v0 && v0.alive;
       if (alive && v0.vowel === sy.vowel && v0.canGlide(m) && !v0.endsBy(tt + d)){
         // same vowel: keep the sound, just move the pitch (and a tiny articulation on a new syllable with consonants)
-        const offs = cur.map(v => v.m - v0.m); cur.forEach((v, i) => v.glide(m + offs[i], tt, newSyl ? .03 : .02));
+        const offs = cur.map(v => v.m - v0.m); cur.forEach((v, i) => v.glide(m + offs[i], tt, line.vocalise ? .055 : newSyl ? .03 : .02));
         if (cons && newSyl && /[mnlrbdgptkcqv]/.test((sy.onset || '') + (line.syl[n.si - 1]?.coda || ''))) cur.forEach(v => v.dip(tt - .02, .5, .1));
-        else if (newSyl && sy.acc) cur.forEach(v => v.dip(tt - .01, .85, .14));   // accent: a small push of breath
+        else if (newSyl && sy.acc && !line.vocalise) cur.forEach(v => v.dip(tt - .01, .85, .14));   // accent: a small push of breath
         return;
       }
       // new sound: crossfade from the old one (vowel change, too far to glide, or the sample is ending)
       const xf = !alive ? .09 : v0.vowel !== sy.vowel ? .1 : .16;
-      const mk = (dm, g, dt) => choirNote(key, sy.vowel, m + dm, {when: tt + dt, vel, gain: g * (o.gain ?? 1), bus, legato: alive, xfade: xf, attack: .1, drift: key === 'dzieci' ? 3 : 6, fromM: alive ? v0.m : undefined});
+      const mk = (dm, g, dt) => choirNote(key, sy.vowel, m + dm, {when: tt + dt, vel, gain: g * (o.gain ?? 1), bus, legato: alive, xfade: xf, attack: .1, drift: line.vocalise ? 2 : key === 'dzieci' ? 3 : 6, fromM: alive ? v0.m : undefined});
       const nv = []; const v1 = mk(0, 1, 0); if (v1) nv.push(v1);
       if (o.double){ const v2 = mk(rnd(-.08, .08), .7, rnd(.01, .03)); if (v2) nv.push(v2); }
       if (cur) cur.forEach(v => v && v.release(tt + (alive ? xf * .5 : .02), alive ? xf * .5 : .06));
@@ -289,6 +293,57 @@ async function loadNeeded(){
   if (on('lancuchy') || on('kadzielnica')) need.add('lancuchy');
   if (on('kadzielnica')) need.add('dzwoneczki_kadzielnicy');
   if (on('beben')) need.add('beben');
+  if (on('drone')){ if (['chor', 'wszystko'].includes(L.drone.inst)) need.add('bas'); if (['organy', 'wszystko'].includes(L.drone.inst)){ need.add('organy_ciche'); need.add('organy_pedal'); } }
   const choirs = new Set(['schola', 'bas', 'dzieci']);
   await Promise.all([...need].map(k => loadInst(k, choirs.has(k) ? (l => l.endsWith('_mf') || (M.zar > .62 && k !== 'dzieci' && !PERF.lite)) : null)));
 }
+
+// ======================= vocalise (no words) =======================
+const VOWEL_OF = {a: 'ah', o: 'oh', u: 'oo', e: 'eh', i: 'ee'};
+let vocVowel = 'ah';
+function vocaliseLine(src, li){
+  if (S.vowel === 'zmienna'){ if (li === 0 || chance(.35)) vocVowel = pick(['ah', 'oh', 'oo', 'ah', 'oh']); }
+  else vocVowel = VOWEL_OF[S.vowel] || 'ah';
+  const syl = src.syl.map(s => ({...s, txt: '', onset: '', coda: '', nuc: 'a', vowel: vocVowel}));
+  return {syl, mediant: src.mediant, vocalise: true, vowel: vocVowel};
+}
+
+// ======================= drone =======================
+// A held sound under everything: the finalis and its fifth (or the written chord's root and fifth).
+// Choir: each pitch is relayed to a fresh voice that fades in over the old one before its sample ends (like
+// monks staggering their breaths). Synth: one long note of many oscillators that glides to a new root.
+// Organ: looped pipes, re-stopped on a change.
+const DR = {choir: [], synth: null, organ: [], key: ''};
+const droneVox = () => ['chor', 'wszystko'].includes(L.drone.inst), droneSyn = () => ['synt', 'wszystko'].includes(L.drone.inst), droneOrg = () => ['organy', 'wszystko'].includes(L.drone.inst);
+function droneTargets(t){
+  const root = ownChords() ? chordAt(t + .01).root : (SEC ? SEC.fin % 12 : 2);
+  let r = root + 36; while (r < 45) r += 12; while (r > 56) r -= 12;
+  return [r, r + 7];
+}
+const DRONE_PATCH = {gain: .2, env: [3, 2, .9, 3], fenv: [4, 3, .7, 3], filt: {type: 'lp', f: 700, q: 1.2, env: .8, key: .3}, drift: 5,
+  oscs: [{t: 'saw', det: -6}, {t: 'saw', det: 7, lvl: .8}, {t: 'sin', r: .5, lvl: .9}, {t: 'formant', lvl: .6, p: {vowel: 'o', scale: .9}}, {t: 'fold', r: 1.5, lvl: .25, p: {fold: 2, foldLfo: .4}}, {t: 'noise', r: 3, lvl: .15, p: {q: 30}}]};
+function droneTick(now){
+  if (!on('drone') || !SEC){ if (DR.key) droneStop(now); return; }
+  const t = now + .15, tg = droneTargets(t), key = tg.join(',') + '|' + L.drone.inst, changed = key !== DR.key, bus = ch('drone');
+  DR.key = key;
+  if (droneVox()){
+    tg.forEach((m, i) => {
+      const v = DR.choir[i];
+      if (v && v.alive && !changed && !v.endsBy(t + 1.2)) return;
+      const nv = choirNote('bas', i ? 'oh' : 'oo', m, {when: t, vel: .45 + M.zar * .2, gain: i ? .55 : .75, bus, legato: true, xfade: v && v.alive ? .9 : 1.6, drift: 3});
+      if (v && v.alive) v.release(t + .5, .35);
+      DR.choir[i] = nv;
+    });
+  } else if (DR.choir.length){ DR.choir.forEach(v => v && v.release(t, .5)); DR.choir = []; }
+  if (droneSyn() && wieloPad){
+    if (!DR.synth) DR.synth = synthNote(wieloPad, DRONE_PATCH, mtof(tg[0]), {when: t, vel: .5});
+    else if (changed) DR.synth.bend(mtof(tg[0]), t, .4);
+  } else if (DR.synth){ DR.synth.off(t); DR.synth = null; }
+  if (droneOrg()){
+    if (changed || !DR.organ.length){ DR.organ.forEach(v => v && v.release(t + .1));
+      DR.organ = [organNote('organy_ciche', tg[0] + 12, {when: t, bus, gain: .5, attack: .5}), organNote('organy_ciche', tg[1] + 12, {when: t, bus, gain: .35, attack: .5})];
+      if (MAN.organy_pedal) DR.organ.push(organNote('organy_pedal', tg[0] - 12 >= 36 ? tg[0] - 12 : tg[0], {when: t, bus, gain: .4, attack: .6}));
+      DR.organ = DR.organ.filter(Boolean); }
+  } else if (DR.organ.length){ DR.organ.forEach(v => v && v.release(t)); DR.organ = []; }
+}
+function droneStop(t){ DR.choir.forEach(v => v && v.release(t, .5)); DR.choir = []; if (DR.synth){ DR.synth.off(t); DR.synth = null; } DR.organ.forEach(v => v && v.release(t)); DR.organ = []; DR.key = ''; }

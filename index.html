@@ -45,7 +45,9 @@
         <label class="fld">Zmiana modusu<select id="modeMode"><option value="stały">Stały</option><option value="losowy">Losowy co tekst</option></select></label>
         <label class="fld">Wysokość <span id="shiftVal"></span><input type="range" id="shift" min="-5" max="5" step="1" value="0"></label>
         <label class="fld full">Tempo śpiewu (swobodny rytm) <span id="tempoVal"></span><input type="range" id="tempo" min="80" max="240" value="150"></label>
-        <label class="fld full">Spółgłoski<select id="cons"><option value="brak">Wyłączone – płynne samogłoski (legato)</option><option value="miekkie">Delikatne (tylko s, t, k, c…)</option><option value="pelne">Pełne</option></select></label>
+        <label class="fld">Śpiew<select id="sing"><option value="wokaliza">Czysty śpiew – bez słów</option><option value="slowa">Słowa łacińskie</option></select></label>
+        <label class="fld">Samogłoska (czysty śpiew)<select id="vowel"><option value="a">a</option><option value="o">o</option><option value="u">u</option><option value="e">e</option><option value="i">i</option><option value="zmienna">zmienia się co frazę</option></select></label>
+        <label class="fld full" id="consBox">Spółgłoski (przy słowach)<select id="cons"><option value="brak">Wyłączone – płynne samogłoski (legato)</option><option value="miekkie">Delikatne (tylko s, t, k, c…)</option><option value="pelne">Pełne</option></select></label>
       </div>
       <div class="note">Melodie powstają na bieżąco według reguł chorału: finalis, ton recytacyjny, ambitus modusu, neumy, intonacja i kadencja. Nic nie jest kopiowane z istniejących śpiewów.</div>
     </div>

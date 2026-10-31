@@ -5,6 +5,10 @@ for (const m of MODES) $('mode').appendChild(new Option(m.name, m.id));
 $('text').value = S.text; $('textMode').value = S.textMode; $('style').value = S.style; $('mode').value = S.mode; $('modeMode').value = S.modeMode;
 $('shift').value = S.shift; $('tempo').value = S.tempo; $('cons').value = S.cons;
 $('cons').onchange = () => { S.cons = $('cons').value; saveState(); };
+$('sing').value = S.sing; $('vowel').value = S.vowel;
+const singVis = () => { $('consBox').classList.toggle('dim', S.sing !== 'slowa'); $('vowel').parentElement.classList.toggle('dim', S.sing === 'slowa'); }; singVis();
+$('sing').onchange = () => { S.sing = $('sing').value; singVis(); saveState(); };
+$('vowel').onchange = () => { S.vowel = $('vowel').value; saveState(); };
 // ---------- chords and rhythm ----------
 for (const k of Object.keys(METERS)) $('meter').appendChild(new Option(k, k));
 $('harm').value = S.harm; $('rhythm').value = S.rhythm; $('chords').value = S.chords; $('meter').value = S.meter; $('bpm').value = S.bpm;
@@ -31,6 +35,7 @@ $('tempo').oninput = () => { S.tempo = +$('tempo').value; tempoTxt(); saveState(
 function syncTextUI(){ $('text').value = S.text; }
 function showNow(){ if (!SEC) return; $('sec').textContent = SEC.text.name; $('modeTag').textContent = 'modus ' + SEC.mode.name + (SEC.psalm ? ' · psalmodia' : ''); }
 function showLine(line, li){
+  if (line.vocalise){ $('line').textContent = '— śpiew bez słów, na „' + ({ah: 'a', oh: 'o', oo: 'u', eh: 'e', ee: 'i'}[line.vowel] || 'a') + '” —'; return; }
   const d = Math.max(0, (Q.length ? 0 : 0)); const el = $('line'); el.innerHTML = '';
   let w = -1;
   line.syl.forEach((sy, i) => { if (sy.word !== w && i){ el.appendChild(document.createTextNode(' ')); } w = sy.word;
