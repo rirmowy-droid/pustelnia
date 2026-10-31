@@ -40,7 +40,7 @@ async function initAudio(){
   revIn.connect(conv); conv.connect(preMaster); dryOut.connect(preMaster);
   preMaster.connect(comp); comp.connect(limiter); limiter.connect(master); master.connect(ctx.destination);
   try {
-    await ctx.audioWorklet.addModule('js/wk/synth.js'); await ctx.audioWorklet.addModule('js/wk/amp.js'); workletsOk = true;
+    await ctx.audioWorklet.addModule('js/wk/synth.js'); await ctx.audioWorklet.addModule('js/wk/amp.js'); await ctx.audioWorklet.addModule('js/wk/glos.js'); workletsOk = true;
   } catch (e){ console.warn('worklets', e); workletsOk = false; }
   initMixer();
   if (workletsOk){
@@ -105,23 +105,31 @@ function choirNote(key, vowel, m, o = {}){
   if (root === null){ layer = Object.keys(MAN[key].layers).find(l => nearestRoot(key, l, m) !== null); if (!layer) return null; root = nearestRoot(key, layer, m); }
   const file = pick(MAN[key].layers[layer][root]), buf = buffers[key + '/' + file]; if (!buf) return null;
   const s = ctx.createBufferSource(); s.buffer = buf;
+  const VX = o.role ? voxOf(o.role) : null, grp = Math.floor(Math.random() * 3);
+  if (VX) VX.node.connect(s.detune, grp);
+  // onset: the voice lands a little flat and rises into the note
+  if (!o.legato && S.vox.scoop > 0){ s.detune.setValueAtTime(-S.vox.scoop * rnd(.6, 1.2), o.when ?? ctx.currentTime); s.detune.setTargetAtTime(0, (o.when ?? ctx.currentTime) + .01, .035 + S.vox.scoop * .0012); }
   const cents = (Math.random() * 2 - 1) * (o.drift ?? 5);
   const rate = Math.pow(2, (m - root) / 12 + cents / 1200);
   if (o.fromM !== undefined && o.fromM !== m){ s.playbackRate.setValueAtTime(Math.pow(2, (o.fromM - root) / 12 + cents / 1200), t); s.playbackRate.setTargetAtTime(rate, t, .025); }
   else s.playbackRate.setValueAtTime(rate, t);
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = .5; lp.frequency.value = (CHOIR_TONE[key] || 4000) * (.55 + vel * .6) * (.75 + M.zar * .5);
-  const g = ctx.createGain(); g.gain.value = 0; s.connect(lp); lp.connect(g); g.connect(o.bus);
+  const g = ctx.createGain(); g.gain.value = 0; s.connect(lp); lp.connect(g); g.connect(VX ? VX.amp : o.bus);
   const amp = (o.gain ?? 1) * (.45 + .55 * vel) * .55;
   const legato = !!o.legato, off = legato ? Math.min(buf._on + .32 + Math.random() * .2, buf.duration - 1) : buf._on;
-  const atk = legato ? (o.xfade ?? .05) : (o.attack ?? .09);
+  const atk = legato ? (o.xfade ?? .05) : (o.attack ?? S.vox.attack);
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(amp, t + atk);
+  // breath swell on a new note (messa di voce): grows, then relaxes
+  if (!legato && S.vox.swell > 0){ g.gain.linearRampToValueAtTime(amp * (1 + S.vox.swell * .5), t + atk + .7); g.gain.setTargetAtTime(amp * (1 - S.vox.swell * .15), t + atk + .8, 1.2); }
+  if (VX && !legato) VX.node.port.postMessage({type: 'onset'});
   s.start(t, off);
   const v = {m, alive: true, t0: t, amp, g, s, lp, key, vowel, root, cents, avail: buf.duration - off - .25,
     canGlide(m2){ return Math.abs(m2 - root) <= 2.5; },
     glide(m2, at, tau = .03){ this.m = m2; s.playbackRate.setTargetAtTime(Math.pow(2, (m2 - root) / 12 + cents / 1200), at, tau); },
     endsBy(at){ return at > t + this.avail; },
     release(at, tau = .09){ if (!this.alive) return; this.alive = false; at = Math.max(at, t + atk); if (g.gain.cancelAndHoldAtTime) g.gain.cancelAndHoldAtTime(at); else g.gain.cancelScheduledValues(at);
-      g.gain.setTargetAtTime(0, at, tau); try { s.stop(at + tau * 8); } catch (e){} },
+      g.gain.setTargetAtTime(0, at, tau); try { s.stop(at + tau * 8); } catch (e){}
+      if (VX) setTimeout(() => { try { VX.node.disconnect(s.detune, grp); } catch (e){} }, Math.max(0, (at + tau * 8 - ctx.currentTime) * 1000 + 200)); },
     dip(at, depth, len){ g.gain.setValueAtTime(amp, at); g.gain.linearRampToValueAtTime(amp * depth, at + len * .4); g.gain.linearRampToValueAtTime(amp, at + len); } };
   glow('chor', vel, t);
   return v;
@@ -262,4 +270,22 @@ function synthNote(node, patch, f, o = {}){
   if (o.dur) node.port.postMessage({type: 'off', id, t: t + o.dur});
   glow(node === wieloBas ? 'bas' : 'pad', o.vel ?? .5, t);
   return {id, off(at){ node.port.postMessage({type: 'off', id, t: at ?? ctx.currentTime}); }, bend(fr, at, glide){ node.port.postMessage({type: 'bend', id, f: fr, t: at, glide}); }};
+}
+
+// ======================= vocal folds: one modulation source per choir role =======================
+const VOXN = {};
+const VOX_ROLE = {mnisi: 1, ison: .8, dzieci: .7, drone: .6};       // how much each role wobbles
+function voxOf(role){
+  if (!workletsOk) return null;
+  if (!VOXN[role]){
+    const node = new AudioWorkletNode(ctx, 'glos', {numberOfInputs: 0, numberOfOutputs: 4, outputChannelCount: [1, 1, 1, 1]});
+    const amp = ctx.createGain(); amp.gain.value = 1; node.connect(amp.gain, 3); amp.connect(channelIn(role));
+    VOXN[role] = {node, amp}; applyVox(role);
+  }
+  return VOXN[role];
+}
+function applyVox(role){
+  const r = (role ? [role] : Object.keys(VOXN)); const V = S.vox;
+  for (const id of r){ const X = VOXN[id]; if (!X) continue; const k = VOX_ROLE[id] ?? 1, kid = id === 'dzieci';
+    X.node.port.postMessage({type: 'set', p: {vib: V.vib * k, vibRate: V.vibRate * (kid ? 1.1 : 1), jitter: V.jitter * k, shimmer: V.shimmer * k, tremor: V.tremor * k * (kid ? .5 : 1), age: V.age * (kid ? .3 : 1), drift: V.jitter * k}}); }
 }

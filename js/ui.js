@@ -9,6 +9,16 @@ $('sing').value = S.sing; $('vowel').value = S.vowel;
 const singVis = () => { $('consBox').classList.toggle('dim', S.sing !== 'slowa'); $('vowel').parentElement.classList.toggle('dim', S.sing === 'slowa'); }; singVis();
 $('sing').onchange = () => { S.sing = $('sing').value; singVis(); saveState(); };
 $('vowel').onchange = () => { S.vowel = $('vowel').value; saveState(); };
+// ---------- voices: envelope and vocal-fold tremor ----------
+(function buildVox(){ const box = $('voxBox'), V = S.vox;
+  const sl = (k, label, min, max, step, fmt) => box.appendChild(mxSlider(label, min, max, step, V[k], fmt, v => { V[k] = v; saveState(); if (ctx) applyVox(); }));
+  const sec = v => v < 1 ? Math.round(v * 1000) + ' ms' : v.toFixed(2) + ' s', ct = v => Math.round(v) + ' ct', hz = v => v.toFixed(1) + ' Hz';
+  sl('attack', 'Narastanie', .02, 1.5, .01, sec); sl('release', 'Wybrzmienie', .05, 2.5, .01, sec);
+  sl('swell', 'Oddech (puchnięcie dźwięku)', 0, 1, .01, fmtPct); sl('scoop', 'Podjazd na dźwięk', 0, 60, 1, ct);
+  sl('vib', 'Wibrato – głębokość', 0, 60, 1, ct); sl('vibRate', 'Wibrato – tempo', 3, 8, .1, hz);
+  sl('jitter', 'Drganie wysokości', 0, 1, .01, fmtPct); sl('shimmer', 'Migotanie głośności', 0, 1, .01, fmtPct);
+  sl('tremor', 'Tremor', 0, 1, .01, fmtPct); sl('age', 'Wiek głosu', 0, 1, .01, fmtPct);
+})();
 // ---------- chords and rhythm ----------
 for (const k of Object.keys(METERS)) $('meter').appendChild(new Option(k, k));
 $('harm').value = S.harm; $('rhythm').value = S.rhythm; $('chords').value = S.chords; $('meter').value = S.meter; $('bpm').value = S.bpm;

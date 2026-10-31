@@ -4,6 +4,7 @@
 // Every setting in S, L and AMP is read live.
 'use strict';
 const S = {text: 'pustynia', textMode: 'kolejno', mode: 1, modeMode: 'stały', shift: 0, tempo: 150, style: 'mieszany', cons: 'brak', sing: 'wokaliza', vowel: 'a',
+  vox: {attack: .12, release: .25, swell: .35, scoop: 18, vib: 14, vibRate: 5.2, jitter: .35, shimmer: .3, tremor: .25, age: .3},
   harm: 'modus', chords: 'Dm C Dm:2 | F C Dm:2', rhythm: 'swobodny', meter: '4/4', bpm: 72,
   pat: {beben: 'x..ox.o.', dzwony: '', lancuchy: '', semantron: ''}};
 const LAYER_DEF = [
@@ -25,7 +26,7 @@ const L = {};
 for (const d of LAYER_DEF) L[d.id] = {on: d.on ?? true, inst: d.def, vol: d.vol};
 const AMP = {on: true, gain: .45, master: .55, bass: .55, mid: .6, treble: .5, presence: .3, nfb: 0, rect: 1, noise: 3, level: 1.2, cab: 'kol_4x12_57', stack: 'marshall', channel: 0, seed: 1};
 const volCurve = v => v * v * 1.6;
-try { const sv = JSON.parse(localStorage.getItem('pu_state') || 'null'); if (sv){ const pat = Object.assign({}, S.pat, (sv.S || {}).pat || {}); Object.assign(S, sv.S || {}); S.pat = pat; for (const k in sv.L || {}) if (L[k]) Object.assign(L[k], sv.L[k]); Object.assign(AMP, sv.AMP || {}); } } catch (e){}
+try { const sv = JSON.parse(localStorage.getItem('pu_state') || 'null'); if (sv){ const pat = Object.assign({}, S.pat, (sv.S || {}).pat || {}), vox = Object.assign({}, S.vox, (sv.S || {}).vox || {}); Object.assign(S, sv.S || {}); S.pat = pat; S.vox = vox; for (const k in sv.L || {}) if (L[k]) Object.assign(L[k], sv.L[k]); Object.assign(AMP, sv.AMP || {}); } } catch (e){}
 function saveState(){ try { localStorage.setItem('pu_state', JSON.stringify({S, L, AMP})); } catch (e){} }
 
 // ======================= helpers =======================
@@ -243,7 +244,7 @@ function singLine(role, key, pitches, notes, times, line, o = {}){
       }
       // new sound: crossfade from the old one (vowel change, too far to glide, or the sample is ending)
       const xf = !alive ? .09 : v0.vowel !== sy.vowel ? .1 : .16;
-      const mk = (dm, g, dt) => choirNote(key, sy.vowel, m + dm, {when: tt + dt, vel, gain: g * (o.gain ?? 1), bus, legato: alive, xfade: xf, attack: .1, drift: line.vocalise ? 2 : key === 'dzieci' ? 3 : 6, fromM: alive ? v0.m : undefined});
+      const mk = (dm, g, dt) => choirNote(key, sy.vowel, m + dm, {when: tt + dt, vel, gain: g * (o.gain ?? 1), bus, role, legato: alive, xfade: xf, drift: line.vocalise ? 2 : key === 'dzieci' ? 3 : 6, fromM: alive ? v0.m : undefined});
       const nv = []; const v1 = mk(0, 1, 0); if (v1) nv.push(v1);
       if (o.double){ const v2 = mk(rnd(-.08, .08), .7, rnd(.01, .03)); if (v2) nv.push(v2); }
       if (cur) cur.forEach(v => v && v.release(tt + (alive ? xf * .5 : .02), alive ? xf * .5 : .06));
@@ -252,7 +253,7 @@ function singLine(role, key, pitches, notes, times, line, o = {}){
     prevSi = n.si;
   }
   const [tl, dl] = times[notes.length - 1];
-  at(tl + dl, (tt) => { if (LINE[role]) LINE[role].forEach(v => v && v.release(tt, .18)); LINE[role] = null; const sy = line.syl[notes[notes.length - 1].si]; if (cons && sy.coda) consonant(sy.coda, tt - .02, bus, .7, o.high); });
+  at(tl + dl, (tt) => { if (LINE[role]) LINE[role].forEach(v => v && v.release(tt, S.vox.release)); LINE[role] = null; const sy = line.syl[notes[notes.length - 1].si]; if (cons && sy.coda) consonant(sy.coda, tt - .02, bus, .7, o.high); });
 }
 function sanctusBells(t, md, fin){
   const base = degMidi(md, fin, 0, false) + 24, n = Math.floor(rnd(3, 7));
@@ -330,7 +331,7 @@ function droneTick(now){
     tg.forEach((m, i) => {
       const v = DR.choir[i];
       if (v && v.alive && !changed && !v.endsBy(t + 1.2)) return;
-      const nv = choirNote('bas', i ? 'oh' : 'oo', m, {when: t, vel: .45 + M.zar * .2, gain: i ? .55 : .75, bus, legato: true, xfade: v && v.alive ? .9 : 1.6, drift: 3});
+      const nv = choirNote('bas', i ? 'oh' : 'oo', m, {when: t, vel: .45 + M.zar * .2, gain: i ? .55 : .75, bus, role: 'drone', legato: true, xfade: v && v.alive ? .9 : 1.6, drift: 3});
       if (v && v.alive) v.release(t + .5, .35);
       DR.choir[i] = nv;
     });
