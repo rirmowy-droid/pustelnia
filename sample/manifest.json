@@ -1414,6 +1414,40 @@
 }
 }
 },
+"beben": {
+"type": "percussion",
+"sounds": [
+"reka_HDrumL_Hand_rr1_Sum.mp3",
+"tek_HDrumL_HitMuted_v2_rr1_Sum.mp3",
+"tek_HDrumL_HitMuted_v2_rr2_Sum.mp3",
+"tek_HDrumL_HitMuted_v3_rr1_Sum.mp3",
+"tek_HDrumL_HitMuted_v3_rr2_Sum.mp3",
+"dum_HDrumL_Hit_v2_rr1_Sum.mp3",
+"dum_HDrumL_Hit_v2_rr2_Sum.mp3",
+"dum_HDrumL_Hit_v3_rr1_Sum.mp3",
+"dum_HDrumL_Hit_v3_rr2_Sum.mp3",
+"reka_HDrumS_Hand_v1_rr1_Sum.mp3",
+"tek_HDrumS_HitMuted_v2_rr1_Sum.mp3",
+"tek_HDrumS_HitMuted_v2_rr2_Sum.mp3",
+"tek_HDrumS_HitMuted_v3_rr1_Sum.mp3",
+"tek_HDrumS_HitMuted_v3_rr2_Sum.mp3",
+"tek_HDrumS_Hit_v2_rr1_Sum.mp3",
+"tek_HDrumS_Hit_v2_rr2_Sum.mp3",
+"tek_HDrumS_Hit_v3_rr1_Sum.mp3",
+"tek_HDrumS_Hit_v3_rr2_Sum.mp3",
+"dar_Darbuka_1_hit_vl2_rr1.mp3",
+"dar_Darbuka_1_hit_vl2_rr2.mp3",
+"dar_Darbuka_2_hit_vl2_rr1.mp3",
+"dar_Darbuka_2_hit_vl2_rr2.mp3",
+"dar_Darbuka_3_hit_vl2_rr1.mp3",
+"dar_Darbuka_3_hit_vl2_rr2.mp3",
+"dar_Darbuka_4_hit_vl2_rr1.mp3",
+"dar_Darbuka_4_hit_vl2_rr2.mp3",
+"dar_Darbuka_5_hit_vl2_rr1.mp3",
+"dar_Darbuka_5_hit_vl2_rr2.mp3"
+],
+"meta": {}
+},
 "bas": {
 "type": "melodic",
 "layers": {
@@ -2272,40 +2306,6 @@
 ]
 }
 },
-"meta": {}
-},
-"beben": {
-"type": "percussion",
-"sounds": [
-"reka_HDrumL_Hand_rr1_Sum.mp3",
-"tek_HDrumL_HitMuted_v2_rr1_Sum.mp3",
-"tek_HDrumL_HitMuted_v2_rr2_Sum.mp3",
-"tek_HDrumL_HitMuted_v3_rr1_Sum.mp3",
-"tek_HDrumL_HitMuted_v3_rr2_Sum.mp3",
-"dum_HDrumL_Hit_v2_rr1_Sum.mp3",
-"dum_HDrumL_Hit_v2_rr2_Sum.mp3",
-"dum_HDrumL_Hit_v3_rr1_Sum.mp3",
-"dum_HDrumL_Hit_v3_rr2_Sum.mp3",
-"reka_HDrumS_Hand_v1_rr1_Sum.mp3",
-"tek_HDrumS_HitMuted_v2_rr1_Sum.mp3",
-"tek_HDrumS_HitMuted_v2_rr2_Sum.mp3",
-"tek_HDrumS_HitMuted_v3_rr1_Sum.mp3",
-"tek_HDrumS_HitMuted_v3_rr2_Sum.mp3",
-"tek_HDrumS_Hit_v2_rr1_Sum.mp3",
-"tek_HDrumS_Hit_v2_rr2_Sum.mp3",
-"tek_HDrumS_Hit_v3_rr1_Sum.mp3",
-"tek_HDrumS_Hit_v3_rr2_Sum.mp3",
-"dar_Darbuka_1_hit_vl2_rr1.mp3",
-"dar_Darbuka_1_hit_vl2_rr2.mp3",
-"dar_Darbuka_2_hit_vl2_rr1.mp3",
-"dar_Darbuka_2_hit_vl2_rr2.mp3",
-"dar_Darbuka_3_hit_vl2_rr1.mp3",
-"dar_Darbuka_3_hit_vl2_rr2.mp3",
-"dar_Darbuka_4_hit_vl2_rr1.mp3",
-"dar_Darbuka_4_hit_vl2_rr2.mp3",
-"dar_Darbuka_5_hit_vl2_rr1.mp3",
-"dar_Darbuka_5_hit_vl2_rr2.mp3"
-],
 "meta": {}
 }
 }

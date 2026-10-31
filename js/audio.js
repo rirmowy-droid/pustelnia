@@ -95,41 +95,93 @@ function pink(){ if (!pinkBuf){ pinkBuf = ctx.createBuffer(1, ctx.sampleRate * 4
   for (let i = 0; i < d.length; i++){ const w = Math.random() * 2 - 1; b0 = .99765 * b0 + w * .099046; b1 = .963 * b1 + w * .2965164; b2 = .57 * b2 + w * 1.0526913; d[i] = (b0 + b1 + b2 + w * .1848) * .2; } } return pinkBuf; }
 
 // ======================= choir =======================
-// One sung note from the section samples. Legato inside a syllable: the next note starts inside the sustain
-// (no new attack) and crossfades. The sample already holds 3-10 real singers per note.
+// One sung note built like a sample-library voice:
+//  - dynamics: the mezzo-forte and forte recordings play together and are crossfaded (equal power) by the
+//    dynamic value, so a louder phrase changes the colour, not only the level; a swell moves the crossfade
+//  - legato / relays: the new voice starts inside its sustain at the offset whose waveform best matches what
+//    the old voice is playing at that moment (phase-aligned), and the two cross with equal-power curves
+//  - the samples are pre-tuned to the cent and their drift is flattened (narzedzia/prep.py, flatten)
 const CHOIR_TONE = {schola: 4200, bas: 3200, dzieci: 7000};
+const XF_N = 64, XF_IN = new Float32Array(XF_N), XF_OUT = new Float32Array(XF_N);
+for (let i = 0; i < XF_N; i++){ const x = i / (XF_N - 1); XF_IN[i] = Math.sin(x * Math.PI / 2); XF_OUT[i] = Math.cos(x * Math.PI / 2); }
+function pickFile(key, layer, root){ const L = MAN[key].layers[layer]; return L && L[root] ? pick(L[root]) : null; }
+// sample index in buf whose next 'win' samples best match ref (normalised correlation), searched over one period
+function alignOffset(ref, buf, guess, period){
+  const d = buf.getChannelData(0), win = ref.length; let best = guess, bc = -2;
+  const g0 = Math.max(0, Math.min(d.length - win - period - 1, guess));
+  let er = 0; for (let i = 0; i < win; i++) er += ref[i] * ref[i];
+  const stepL = PERF.lite ? 2 : 1;
+  for (let l = 0; l < period; l += stepL){
+    let c = 0, e = 0; const o = g0 + l;
+    for (let i = 0; i < win; i += 2){ const v = d[o + i]; c += v * ref[i]; e += v * v; }
+    const n = c / Math.sqrt(e * er * .5 + 1e-12); if (n > bc){ bc = n; best = o; }
+  }
+  return best;
+}
 function choirNote(key, vowel, m, o = {}){
   const t = o.when ?? ctx.currentTime, vel = clamp(o.vel ?? .6, 0, 1);
-  let layer = vowel + '_' + (vel > .62 ? 'f' : 'mf'), root = MAN[key].layers[layer] ? nearestRoot(key, layer, m) : null;
-  if (root === null){ layer = vowel + '_mf'; root = MAN[key].layers[layer] ? nearestRoot(key, layer, m) : null; }
-  if (root === null){ layer = Object.keys(MAN[key].layers).find(l => nearestRoot(key, l, m) !== null); if (!layer) return null; root = nearestRoot(key, layer, m); }
-  const file = pick(MAN[key].layers[layer][root]), buf = buffers[key + '/' + file]; if (!buf) return null;
-  const s = ctx.createBufferSource(); s.buffer = buf;
+  // the layers to use: mf always, f too when loaded (both are mixed by the dynamic value)
+  let lay = vowel + '_mf', root = MAN[key].layers[lay] ? nearestRoot(key, lay, m) : null;
+  if (root === null){ lay = Object.keys(MAN[key].layers).find(l => l.endsWith('_mf') && nearestRoot(key, l, m) !== null) || Object.keys(MAN[key].layers).find(l => nearestRoot(key, l, m) !== null); if (!lay) return null; root = nearestRoot(key, lay, m); }
+  const layF = lay.replace('_mf', '_f'), fF = pickFile(key, layF, root), bufF = fF ? buffers[key + '/' + fF] : null;
+  const bufM = buffers[key + '/' + pickFile(key, lay, root)]; if (!bufM) return null;
+  const dyn = clamp(o.dyn ?? (vel - .35) / .5, 0, 1), two = !!bufF;
   const VX = o.role ? voxOf(o.role) : null, grp = Math.floor(Math.random() * 3);
-  if (VX) VX.node.connect(s.detune, grp);
-  // onset: the voice lands a little flat and rises into the note
-  if (!o.legato && S.vox.scoop > 0){ s.detune.setValueAtTime(-S.vox.scoop * rnd(.6, 1.2), o.when ?? ctx.currentTime); s.detune.setTargetAtTime(0, (o.when ?? ctx.currentTime) + .01, .035 + S.vox.scoop * .0012); }
-  const cents = (Math.random() * 2 - 1) * (o.drift ?? 5);
-  const rate = Math.pow(2, (m - root) / 12 + cents / 1200);
-  if (o.fromM !== undefined && o.fromM !== m){ s.playbackRate.setValueAtTime(Math.pow(2, (o.fromM - root) / 12 + cents / 1200), t); s.playbackRate.setTargetAtTime(rate, t, .025); }
-  else s.playbackRate.setValueAtTime(rate, t);
-  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = .5; lp.frequency.value = (CHOIR_TONE[key] || 4000) * (.55 + vel * .6) * (.75 + M.zar * .5);
-  const g = ctx.createGain(); g.gain.value = 0; s.connect(lp); lp.connect(g); g.connect(VX ? VX.amp : o.bus);
+  const cents = (Math.random() * 2 - 1) * (o.drift ?? 5), rate = Math.pow(2, (m - root) / 12 + cents / 1200);
+  const legato = !!o.legato, prev = o.prev && o.prev.alive ? o.prev : null;
   const amp = (o.gain ?? 1) * (.45 + .55 * vel) * .55;
-  const legato = !!o.legato, off = legato ? Math.min(buf._on + .32 + Math.random() * .2, buf.duration - 1) : buf._on;
-  const atk = legato ? (o.xfade ?? .05) : (o.attack ?? S.vox.attack);
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(amp, t + atk);
-  // breath swell on a new note (messa di voce): grows, then relaxes
-  if (!legato && S.vox.swell > 0){ g.gain.linearRampToValueAtTime(amp * (1 + S.vox.swell * .5), t + atk + .7); g.gain.setTargetAtTime(amp * (1 - S.vox.swell * .15), t + atk + .8, 1.2); }
-  if (VX && !legato) VX.node.port.postMessage({type: 'onset'});
-  s.start(t, off);
-  const v = {m, alive: true, t0: t, amp, g, s, lp, key, vowel, root, cents, avail: buf.duration - off - .25,
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = .5; lp.frequency.value = (CHOIR_TONE[key] || 4000) * (.55 + vel * .6) * (.75 + M.zar * .5);
+  const g = ctx.createGain(), xg = ctx.createGain(); g.gain.value = 0; lp.connect(g); g.connect(xg); xg.connect(VX ? VX.amp : o.bus);
+  // one source per dynamic layer, each into its own crossfade gain
+  const mkSrc = (buf, mixG) => {
+    const s = ctx.createBufferSource(); s.buffer = buf; const gg = ctx.createGain(); gg.gain.value = mixG; s.connect(gg); gg.connect(lp);
+    if (VX) VX.node.connect(s.detune, grp);
+    if (o.fromM !== undefined && o.fromM !== m){ s.playbackRate.setValueAtTime(Math.pow(2, (o.fromM - root) / 12 + cents / 1200), t); s.playbackRate.setTargetAtTime(rate, t, .025); }
+    else s.playbackRate.setValueAtTime(rate, t);
+    if (!legato && S.vox.scoop > 0){ const sc = S.vox.scoop * rnd(.6, 1.2) * (1.2 - vel * .5); s.detune.setValueAtTime(-sc, t); s.detune.setTargetAtTime(0, t + .01, .035 + S.vox.scoop * .0012); }
+    return {s, gg, buf};
+  };
+  const srcs = [mkSrc(bufM, two ? Math.cos(dyn * Math.PI / 2) : 1)]; if (two) srcs.push(mkSrc(bufF, Math.sin(dyn * Math.PI / 2)));
+  // start offsets: the attack for a new note; inside the sustain, phase-matched to the old voice, for legato
+  const offs = srcs.map(x => {
+    if (!legato) return x.buf._on;
+    let guess = Math.min(x.buf._on + .3 + Math.random() * .2, x.buf.duration - 1);
+    if (prev && prev.root === root && prev.posAt){
+      const pb = prev.srcs[0].buf, pd = pb.getChannelData(0), sr = pb.sampleRate, pp = Math.floor(prev.posAt(t) * sr), win = Math.floor(sr * (PERF.lite ? .012 : .02));
+      if (pp > 0 && pp + win < pd.length){ const ref = pd.subarray(pp, pp + win), period = Math.ceil(sr / mtof(root)) + 2;
+        return alignOffset(ref, x.buf, Math.floor(guess * x.buf.sampleRate), period) / x.buf.sampleRate; }
+    }
+    return guess;
+  });
+  // envelope: attack (new note) or equal-power fade-in (legato), then a breath swell that also brightens
+  if (legato){ g.gain.setValueAtTime(amp, t); const xf = Math.max(.02, o.xfade ?? .06); try { xg.gain.setValueCurveAtTime(XF_IN, t, xf); } catch (e){ xg.gain.setValueAtTime(0, t); xg.gain.linearRampToValueAtTime(1, t + xf); } }
+  else {
+    const atk = o.attack ?? S.vox.attack; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(amp, t + atk);
+    if (S.vox.swell > 0 && (o.dur ?? 9) > .5){
+      const sw = S.vox.swell, up = Math.min(1.2, (o.dur ?? 2) * .5);
+      if (two){ const d2 = clamp(dyn + sw * .45, 0, 1), d3 = clamp(dyn + sw * .12, 0, 1);
+        srcs[0].gg.gain.setValueAtTime(Math.cos(dyn * Math.PI / 2), t + atk); srcs[0].gg.gain.linearRampToValueAtTime(Math.cos(d2 * Math.PI / 2), t + atk + up); srcs[0].gg.gain.setTargetAtTime(Math.cos(d3 * Math.PI / 2), t + atk + up, 1.2);
+        srcs[1].gg.gain.setValueAtTime(Math.sin(dyn * Math.PI / 2), t + atk); srcs[1].gg.gain.linearRampToValueAtTime(Math.sin(d2 * Math.PI / 2), t + atk + up); srcs[1].gg.gain.setTargetAtTime(Math.sin(d3 * Math.PI / 2), t + atk + up, 1.2); }
+      g.gain.linearRampToValueAtTime(amp * (1 + sw * (two ? .25 : .5)), t + atk + up); g.gain.setTargetAtTime(amp * (1 - sw * .1), t + atk + up + .1, 1.2);
+    }
+    if (VX) VX.node.port.postMessage({type: 'onset'});
+  }
+  srcs.forEach((x, i) => x.s.start(t, offs[i]));
+  // where in the (first) sample the voice is at a given time, following its rate changes
+  const segs = [[t, offs[0], rate]];
+  const posAt = (at) => { let sg = segs[0]; for (const q of segs) if (q[0] <= at) sg = q; return sg[1] + (at - sg[0]) * sg[2]; };
+  const stopAll = (at) => { srcs.forEach(x => { try { x.s.stop(at); } catch (e){} });
+    if (VX) setTimeout(() => srcs.forEach(x => { try { VX.node.disconnect(x.s.detune, grp); } catch (e){} }), Math.max(0, (at - ctx.currentTime) * 1000 + 200)); };
+  const v = {m, alive: true, t0: t, amp, g, lp, key, vowel, root, cents, srcs, posAt,
+    avail: Math.min(...srcs.map((x, i) => x.buf.duration - offs[i])) - .3,
     canGlide(m2){ return Math.abs(m2 - root) <= 2.5; },
-    glide(m2, at, tau = .03){ this.m = m2; s.playbackRate.setTargetAtTime(Math.pow(2, (m2 - root) / 12 + cents / 1200), at, tau); },
-    endsBy(at){ return at > t + this.avail; },
-    release(at, tau = .09){ if (!this.alive) return; this.alive = false; at = Math.max(at, t + atk); if (g.gain.cancelAndHoldAtTime) g.gain.cancelAndHoldAtTime(at); else g.gain.cancelScheduledValues(at);
-      g.gain.setTargetAtTime(0, at, tau); try { s.stop(at + tau * 8); } catch (e){}
-      if (VX) setTimeout(() => { try { VX.node.disconnect(s.detune, grp); } catch (e){} }, Math.max(0, (at + tau * 8 - ctx.currentTime) * 1000 + 200)); },
+    glide(m2, at, tau = .03){ this.m = m2; const r = Math.pow(2, (m2 - root) / 12 + cents / 1200); segs.push([at + tau, posAt(at + tau), r]); srcs.forEach(x => x.s.playbackRate.setTargetAtTime(r, at, tau)); },
+    endsBy(at){ return at > t + this.avail / rate; },
+    // end of the note: the envelope's release
+    release(at, tau = .09){ if (!this.alive) return; this.alive = false; at = Math.max(at, t + .02); if (g.gain.cancelAndHoldAtTime) g.gain.cancelAndHoldAtTime(at); else g.gain.cancelScheduledValues(at);
+      g.gain.setTargetAtTime(0, at, tau); stopAll(at + tau * 8); },
+    // handing over to another voice: equal-power fade-out on the crossfade gain
+    xfadeOut(at, len){ if (!this.alive) return; this.alive = false; at = Math.max(at, t + .02); try { if (xg.gain.cancelAndHoldAtTime) xg.gain.cancelAndHoldAtTime(at); else xg.gain.cancelScheduledValues(at); xg.gain.setValueCurveAtTime(XF_OUT, at, Math.max(.02, len)); } catch (e){ xg.gain.setTargetAtTime(0, at, len / 3); } stopAll(at + len + .05); },
     dip(at, depth, len){ g.gain.setValueAtTime(amp, at); g.gain.linearRampToValueAtTime(amp * depth, at + len * .4); g.gain.linearRampToValueAtTime(amp, at + len); } };
   glow('chor', vel, t);
   return v;

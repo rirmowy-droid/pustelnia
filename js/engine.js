@@ -244,17 +244,25 @@ function singLine(role, key, pitches, notes, times, line, o = {}){
       }
       // new sound: crossfade from the old one (vowel change, too far to glide, or the sample is ending)
       const xf = !alive ? .09 : v0.vowel !== sy.vowel ? .1 : .16;
-      const mk = (dm, g, dt) => choirNote(key, sy.vowel, m + dm, {when: tt + dt, vel, gain: g * (o.gain ?? 1), bus, role, legato: alive, xfade: xf, drift: line.vocalise ? 2 : key === 'dzieci' ? 3 : 6, fromM: alive ? v0.m : undefined});
-      const nv = []; const v1 = mk(0, 1, 0); if (v1) nv.push(v1);
-      if (o.double){ const v2 = mk(rnd(-.08, .08), .7, rnd(.01, .03)); if (v2) nv.push(v2); }
-      if (cur) cur.forEach(v => v && v.release(tt + (alive ? xf * .5 : .02), alive ? xf * .5 : .06));
+      // envelope by length and strength: short or strong notes speak faster, long ones get the breath swell
+      let lineLen = 0; for (let q = j; q < notes.length && notes[q].si === n.si; q++) lineLen += times[q][1];
+      const atk = S.vox.attack * (1.3 - vel * .6) * (lineLen < .35 ? .55 : lineLen < .8 ? .8 : 1);
+      const mk = (dm, g, dt, pv) => choirNote(key, sy.vowel, m + dm, {when: tt + dt, vel, dyn: clamp((vel - .35) / .5 + (sy.acc ? .08 : 0), 0, 1), gain: g * (o.gain ?? 1), bus, role, legato: alive, prev: pv, xfade: xf, attack: atk, dur: lineLen, drift: line.vocalise ? 2 : key === 'dzieci' ? 3 : 6, fromM: alive ? v0.m : undefined});
+      const nv = []; const v1 = mk(0, 1, 0, alive ? v0 : null); if (v1) nv.push(v1);
+      if (o.double){ const v2 = mk(rnd(-.08, .08), .7, rnd(.01, .03), alive && cur[1] ? cur[1] : null); if (v2) nv.push(v2); }
+      if (cur) cur.forEach(v => { if (!v) return; if (alive && v.xfadeOut) v.xfadeOut(tt, xf); else v.release(tt + .02, .06); });
       LINE[role] = nv;
     });
     prevSi = n.si;
   }
   const [tl, dl] = times[notes.length - 1];
-  at(tl + dl, (tt) => { if (LINE[role]) LINE[role].forEach(v => v && v.release(tt, S.vox.release)); LINE[role] = null; const sy = line.syl[notes[notes.length - 1].si]; if (cons && sy.coda) consonant(sy.coda, tt - .02, bus, .7, o.high); });
+  // the end of the phrase: release scaled by how long the phrase was, and the hall rings out a little more
+  const phraseLen = tl + dl - times[from][0], relTau = S.vox.release * clamp(phraseLen / 5, .6, 1.6);
+  at(tl + dl, (tt) => { if (LINE[role]) LINE[role].forEach(v => v && v.release(tt, relTau)); hallTail(role, tt, relTau); LINE[role] = null; const sy = line.syl[notes[notes.length - 1].si]; if (cons && sy.coda) consonant(sy.coda, tt - .02, bus, .7, o.high); });
 }
+// like a library's release trigger with the room: more of the hall while the phrase dies away, then back
+function hallTail(role, t, tau){ const n = CH[role]; if (!n) return; const base = MX.ch[role]?.rev ?? .6, p = n.send.gain;
+  p.cancelScheduledValues(t); p.setValueAtTime(base, t); p.linearRampToValueAtTime(base * 1.7, t + .08); p.setTargetAtTime(base, t + tau * 2 + .3, .8); }
 function sanctusBells(t, md, fin){
   const base = degMidi(md, fin, 0, false) + 24, n = Math.floor(rnd(3, 7));
   for (let i = 0; i < n; i++) at(t + i * rnd(.07, .14), (tt) => melodicHit('dzwonki_reczne', base + pick([0, 2, 4, 7, 12]), {when: tt, vel: rnd(.3, .7), bus: ch('dzwony'), gain: .55}));
@@ -296,7 +304,7 @@ async function loadNeeded(){
   if (on('beben')) need.add('beben');
   if (on('drone')){ if (['chor', 'wszystko'].includes(L.drone.inst)) need.add('bas'); if (['organy', 'wszystko'].includes(L.drone.inst)){ need.add('organy_ciche'); need.add('organy_pedal'); } }
   const choirs = new Set(['schola', 'bas', 'dzieci']);
-  await Promise.all([...need].map(k => loadInst(k, choirs.has(k) ? (l => l.endsWith('_mf') || (M.zar > .62 && k !== 'dzieci' && !PERF.lite)) : null)));
+  await Promise.all([...need].map(k => loadInst(k, choirs.has(k) ? (l => l.endsWith('_mf') || (k !== 'dzieci' && !PERF.lite)) : null)));
 }
 
 // ======================= vocalise (no words) =======================
@@ -331,8 +339,8 @@ function droneTick(now){
     tg.forEach((m, i) => {
       const v = DR.choir[i];
       if (v && v.alive && !changed && !v.endsBy(t + 1.2)) return;
-      const nv = choirNote('bas', i ? 'oh' : 'oo', m, {when: t, vel: .45 + M.zar * .2, gain: i ? .55 : .75, bus, role: 'drone', legato: true, xfade: v && v.alive ? .9 : 1.6, drift: 3});
-      if (v && v.alive) v.release(t + .5, .35);
+      const nv = choirNote('bas', i ? 'oh' : 'oo', m, {when: t, vel: .45 + M.zar * .2, gain: i ? .55 : .75, bus, role: 'drone', legato: true, prev: v && v.alive ? v : null, xfade: v && v.alive ? .9 : 1.6, drift: 3});
+      if (v && v.alive) v.xfadeOut(t, .9);
       DR.choir[i] = nv;
     });
   } else if (DR.choir.length){ DR.choir.forEach(v => v && v.release(t, .5)); DR.choir = []; }

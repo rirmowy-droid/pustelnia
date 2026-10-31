@@ -37,6 +37,40 @@ def add_perc(inst, name, meta=None):
     I['sounds'].append(name + '.mp3')
     if meta: I['meta'][name + '.mp3'] = meta
 
+# ------------------------------------------------------------------ tuning: measure the pitch, flatten the drift
+def pitch_track(x, f0, hop=0.01):
+    """Pitch every 10 ms around the expected f0 (normalised autocorrelation, parabolic peak). Returns times, cents."""
+    h = int(hop * SR); lo, hi = int(SR / (f0 * 1.15)), int(SR / (f0 / 1.15)); w = max(int(SR / f0 * 3), 512)
+    ts, cs = [], []
+    for i in range(0, len(x) - w - hi, h):
+        a = x[i:i + w]; e0 = np.dot(a, a)
+        if e0 < 1e-7: continue
+        b = x[i:i + w + hi]
+        r = np.correlate(b, a, 'valid')[lo:hi + 1]                       # lag lo..hi
+        eb = np.convolve(b * b, np.ones(w), 'valid')[lo:hi + 1]
+        nr = r / np.sqrt(e0 * eb + 1e-12); k = int(np.argmax(nr))
+        if nr[k] < .5: continue
+        if 0 < k < len(nr) - 1: y0, y1, y2 = nr[k - 1], nr[k], nr[k + 1]; k = k + .5 * (y0 - y2) / (y0 - 2 * y1 + y2 + 1e-12)
+        ts.append(i / SR); cs.append(1200 * np.log2(SR / (lo + k) / f0))
+    return np.array(ts), np.array(cs)
+TUNE_LOG = []
+def flatten(x, midi_note, name='', keep=1.0):
+    """Library-style tuning: shift the sample so its median pitch is exactly the note, and remove the slow drift of
+    the section (anything slower than ~2 Hz). Vibrato and the natural fast wobble stay. Time-varying resampling."""
+    f0 = 440 * 2 ** ((midi_note - 69) / 12)
+    ts, cs = pitch_track(x, f0)
+    if len(cs) < 20: return x
+    med = np.median(cs); ok = np.abs(cs - med) < 60                       # drop octave / tracking errors
+    ts, cs = ts[ok], cs[ok]
+    k = 25                                                                  # 250 ms smoothing: the drift
+    pad = np.pad(cs, k, mode='edge'); slow = np.convolve(pad, np.ones(2 * k + 1) / (2 * k + 1), 'same')[k:-k]
+    t = np.arange(len(x)) / SR; corr = -np.interp(t, ts, slow) * keep      # cents to apply
+    rate = 2 ** (corr / 1200); pos = np.concatenate([[0], np.cumsum(rate[:-1])])
+    pos = pos[pos < len(x) - 1]
+    y = np.interp(pos, np.arange(len(x)), x)
+    TUNE_LOG.append((name, round(float(med), 1), round(float(np.ptp(slow)), 1)))
+    return y
+
 # ------------------------------------------------------------------ formant shift (children)
 def formant_shift(x, alpha, lift=40, n=2048, hop=256):
     """Move the spectral envelope up by alpha (shorter vocal tract) while keeping the pitch: cepstral envelope
@@ -61,13 +95,13 @@ def choir():
             T = {midi(re.search(r'_([A-G]s?\d)\.wav', p)[1]): p for p in glob.glob(f'{EC}/samples/T/T_{v}_{dyn}_*.wav')}
             # bass section alone (ison, organum below)
             for m, p in sorted(B.items()):
-                x = rd(p); x = fade_out(x[onset(x):], 3.8); enc('bas', f'{v}_{m}_{dyn}', x, 0.5); add_mel('bas', f'{v}_{dyn}', m, f'{v}_{m}_{dyn}')
+                x = rd(p); x = flatten(x[onset(x):], m, os.path.basename(p)); x = fade_out(x, 3.8); enc('bas', f'{v}_{m}_{dyn}', x, 0.5); add_mel('bas', f'{v}_{dyn}', m, f'{v}_{m}_{dyn}')
             # schola: basses and tenors singing the same pitch where both ranges meet
             for m in sorted(set(B) | set(T)):
                 parts = []
                 if m in B: parts.append(rd(B[m]))
                 if m in T: parts.append(rd(T[m]))
-                parts = [p[onset(p):] for p in parts]; n = min(len(p) for p in parts)
+                parts = [flatten(p[onset(p):], m, f'schola {v} {m}') for p in parts]; n = min(len(p) for p in parts)
                 x = sum(p[:n] for p in parts) / np.sqrt(len(parts))
                 x = fade_out(x, 3.8); enc('schola', f'{v}_{m}_{dyn}', x, 0.5); add_mel('schola', f'{v}_{dyn}', m, f'{v}_{m}_{dyn}')
         # children: soprano (and alto below C4) samples with formants raised ~17 %, a little brighter and lighter
@@ -76,12 +110,12 @@ def choir():
         src = dict(A); src.update(S)
         for m, p in sorted(src.items()):
             if m < 57: continue
-            x = rd(p); x = x[onset(x):][:int(6.2 * SR)]
+            x = rd(p); x = flatten(x[onset(x):][:int(6.2 * SR)], m, os.path.basename(p))
             y = formant_shift(x, 1.17)
             # thinner chest resonance of a child: gentle low cut
             Y = np.fft.rfft(y); fr = np.fft.rfftfreq(len(y), 1 / SR); Y *= 1 / np.sqrt(1 + (220 / np.maximum(fr, 1)) ** 2); y = np.fft.irfft(Y, len(y))
             y = fade_out(y, 3.8); enc('dzieci', f'{v}_{m}_mf', y, 0.5); add_mel('dzieci', f'{v}_mf', m, f'{v}_{m}_mf')
-        print('choir', v, flush=True)
+        print('choir', v, 'tuned', len(TUNE_LOG), 'median |offset| %.1f ct, median drift removed %.1f ct' % (np.median([abs(a) for _, a, _ in TUNE_LOG]), np.median([b for *_, b in TUNE_LOG])), flush=True)
 
 # ------------------------------------------------------------------ organs: sustained with a seamless loop
 def loop_points(x, a, b):
