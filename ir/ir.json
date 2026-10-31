@@ -1,0 +1,239 @@
+[
+ {
+  "id": "jaskinia",
+  "name": "Jaskinia pustelnika",
+  "group": "Klasztor na pustyni",
+  "kind": "space",
+  "file": "ir/jaskinia.mp3",
+  "len": 2.5,
+  "gain": 0.24262654470368922,
+  "rt60": [
+   2.0,
+   2.0,
+   1.41,
+   0.9,
+   0.65,
+   0.57,
+   0.49,
+   0.4,
+   0.29
+  ]
+ },
+ {
+  "id": "kaplica",
+  "name": "Kamienna kaplica",
+  "group": "Klasztor na pustyni",
+  "kind": "space",
+  "file": "ir/kaplica.mp3",
+  "len": 4.5,
+  "gain": 0.3080138748021517,
+  "rt60": [
+   3.6,
+   3.6,
+   3.6,
+   3.6,
+   3.6,
+   3.6,
+   2.62,
+   1.43,
+   0.63
+  ]
+ },
+ {
+  "id": "krypta",
+  "name": "Krypta pod kościołem",
+  "group": "Klasztor na pustyni",
+  "kind": "space",
+  "file": "ir/krypta.mp3",
+  "len": 3.5,
+  "gain": 0.17361468648812728,
+  "rt60": [
+   2.49,
+   1.36,
+   0.96,
+   0.71,
+   0.61,
+   0.54,
+   0.51,
+   0.43,
+   0.31
+  ]
+ },
+ {
+  "id": "bazylika",
+  "name": "Bazylika (wielka nawa)",
+  "group": "Klasztor na pustyni",
+  "kind": "space",
+  "file": "ir/bazylika.mp3",
+  "len": 9.0,
+  "gain": 0.22118675943716343,
+  "rt60": [
+   7.2,
+   7.2,
+   5.37,
+   3.92,
+   3.3,
+   2.79,
+   2.24,
+   1.37,
+   0.63
+  ]
+ },
+ {
+  "id": "cysterna",
+  "name": "Podziemna cysterna",
+  "group": "Klasztor na pustyni",
+  "kind": "space",
+  "file": "ir/cysterna.mp3",
+  "len": 9.0,
+  "gain": 0.09320165588053529,
+  "rt60": [
+   7.2,
+   7.2,
+   7.2,
+   7.2,
+   7.2,
+   7.04,
+   4.24,
+   1.86,
+   0.71
+  ]
+ },
+ {
+  "id": "dziedziniec",
+  "name": "Dziedziniec klasztoru (pod niebem)",
+  "group": "Pustynia",
+  "kind": "space",
+  "file": "ir/dziedziniec.mp3",
+  "len": 2.5,
+  "gain": 0.21384931867192034,
+  "rt60": [
+   1.43,
+   1.32,
+   1.21,
+   1.1,
+   0.99,
+   0.88,
+   0.72,
+   0.55,
+   0.39
+  ]
+ },
+ {
+  "id": "kanion",
+  "name": "Kanion – skalne ściany",
+  "group": "Pustynia",
+  "kind": "space",
+  "file": "ir/kanion.mp3",
+  "len": 4.0,
+  "gain": 0.19920948559948662,
+  "rt60": [
+   2.08,
+   1.92,
+   1.76,
+   1.6,
+   1.44,
+   1.28,
+   1.04,
+   0.8,
+   0.56
+  ]
+ },
+ {
+  "id": "wydmy",
+  "name": "Otwarta pustynia (wydmy)",
+  "group": "Pustynia",
+  "kind": "space",
+  "file": "ir/wydmy.mp3",
+  "len": 2.0,
+  "gain": 0.24483503730830325,
+  "rt60": [
+   0.65,
+   0.6,
+   0.55,
+   0.5,
+   0.45,
+   0.4,
+   0.33,
+   0.25,
+   0.17
+  ]
+ },
+ {
+  "id": "kosciol",
+  "name": "Mały kościół (nagranie)",
+  "group": "Prawdziwe miejsca (nagrania)",
+  "kind": "space",
+  "file": "ir/kosciol.mp3",
+  "len": 1.05,
+  "gain": 1.0,
+  "source": "Rooms/Historical/Religious/Drumheller's Little Church/Drumheller's Little Church.wav"
+ },
+ {
+  "id": "panteon",
+  "name": "Panteon w Rzymie (nagranie)",
+  "group": "Prawdziwe miejsca (nagrania)",
+  "kind": "space",
+  "file": "ir/panteon.mp3",
+  "len": 4.5,
+  "gain": 1.0,
+  "source": "Rooms/Historical/Landmarks/The Pantheon (Rome)/The Pantheon Optimal.wav"
+ },
+ {
+  "id": "teatr_ostia",
+  "name": "Rzymski teatr w Ostii (nagranie)",
+  "group": "Prawdziwe miejsca (nagrania)",
+  "kind": "space",
+  "file": "ir/teatr_ostia.mp3",
+  "len": 2.0,
+  "gain": 1.0,
+  "source": "Outdoors/Historical/Ostia Antica Theatre/Ostia Antica Theatre.wav"
+ },
+ {
+  "id": "wenecja",
+  "name": "Kamienne wnętrze z XIII w. (nagranie)",
+  "group": "Prawdziwe miejsca (nagrania)",
+  "kind": "space",
+  "file": "ir/wenecja.mp3",
+  "len": 1.65,
+  "gain": 1.0,
+  "source": "Rooms/Residential/13th Century Venetian Home/13th Century Venetian Home.wav"
+ },
+ {
+  "id": "piwnica",
+  "name": "Piwnica (nagranie)",
+  "group": "Prawdziwe miejsca (nagrania)",
+  "kind": "space",
+  "file": "ir/piwnica.mp3",
+  "len": 1.2,
+  "gain": 1.0,
+  "source": "Rooms/Historical/Shelters/Menorcan Spanish Civil War Bunkers/Bunker 1 Rear Center.wav"
+ },
+ {
+  "id": "kol_4x12_57",
+  "name": "Kolumna 4×12 zamknięta, mikrofon dynamiczny",
+  "group": "Kolumny głośnikowe (policzone)",
+  "kind": "cab",
+  "file": "ir/kol_4x12_57.wav",
+  "len": 0.09287981859410431,
+  "gain": 1.0
+ },
+ {
+  "id": "kol_2x12_open_wst",
+  "name": "Kolumna 2×12 otwarta, mikrofon wstęgowy",
+  "group": "Kolumny głośnikowe (policzone)",
+  "kind": "cab",
+  "file": "ir/kol_2x12_open_wst.wav",
+  "len": 0.09287981859410431,
+  "gain": 1.0
+ },
+ {
+  "id": "kol_1x12_open_sosna_poj",
+  "name": "Kolumna 1×12 sosnowa, mikrofon pojemnościowy",
+  "group": "Kolumny głośnikowe (policzone)",
+  "kind": "cab",
+  "file": "ir/kol_1x12_open_sosna_poj.wav",
+  "len": 0.09287981859410431,
+  "gain": 1.0
+ }
+]

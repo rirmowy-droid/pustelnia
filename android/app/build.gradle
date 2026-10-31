@@ -1,0 +1,25 @@
+plugins { id 'com.android.application' }
+
+android {
+  namespace 'pl.pustelnia.app'
+  compileSdk 34
+  defaultConfig {
+    applicationId "pl.pustelnia.app"
+    minSdk 24
+    targetSdk 34
+    // every GitHub build gets a higher number, so a new APK installs over the old one
+    versionCode Integer.parseInt(System.getenv("GITHUB_RUN_NUMBER") ?: "1")
+    versionName "0.1." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+  }
+  signingConfigs {
+    // one fixed key in the repo, so updates install over the previous version (personal sideloading only)
+    shared { storeFile file('../pustelnia.keystore'); storePassword 'jesienna'; keyAlias 'jesienna'; keyPassword 'jesienna' }
+  }
+  buildTypes {
+    debug { signingConfig signingConfigs.shared }
+    release { signingConfig signingConfigs.shared; minifyEnabled false }
+  }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+  androidResources { noCompress 'mp3', 'json', 'wav' }
+}
+dependencies { implementation 'androidx.webkit:webkit:1.11.0' }

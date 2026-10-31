@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c1426">
+<title>Pustelnia</title>
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="sky"></canvas>
+<div class="wrap">
+  <header>
+    <h1>Pustelnia<small>chorał na pustyni</small></h1>
+    <button class="viewb" id="viewBtn">Mikser</button>
+    <button class="play" id="playBtn" aria-label="Start">▶</button>
+  </header>
+  <div class="now">
+    <div class="sec" id="sec">Dotknij ▶, a mnisi zaczną śpiewać</div>
+    <div class="mode" id="modeTag"></div>
+    <div class="line" id="line"></div>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div id="mixer"></div>
+  <div id="band">
+    <div class="card">
+      <div class="label">Nastrój</div>
+      <div class="macros">
+        <div class="macro"><b>Żar</b><input class="vslider" type="range" id="m_zar" min="0" max="100" value="45"><small>siła głosów, jasność, przester basów</small></div>
+        <div class="macro"><b>Gęstość</b><input class="vslider" type="range" id="m_gest" min="0" max="100" value="45"><small>melizmaty, dzwony, łańcuchy</small></div>
+        <div class="macro"><b>Pustka</b><input class="vslider" type="range" id="m_pust" min="0" max="100" value="50"><small>cisza między frazami, przestrzeń, noc</small></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">Chorał</div>
+      <div class="grid2">
+        <label class="fld full">Tekst<select id="text"></select></label>
+        <label class="fld">Kolejne teksty<select id="textMode"><option value="stały">Powtarzaj ten sam</option><option value="kolejno">Po kolei</option><option value="losowo">Losowo</option></select></label>
+        <label class="fld">Sposób śpiewu<select id="style"><option value="swobodny">Swobodna melodia</option><option value="psalmodia">Psalmodia (recytacja na tenorze)</option><option value="mieszany">Mieszany</option></select></label>
+        <label class="fld full">Skala kościelna (modus)<select id="mode"></select></label>
+        <label class="fld">Zmiana modusu<select id="modeMode"><option value="stały">Stały</option><option value="losowy">Losowy co tekst</option></select></label>
+        <label class="fld">Wysokość <span id="shiftVal"></span><input type="range" id="shift" min="-5" max="5" step="1" value="0"></label>
+        <label class="fld full">Tempo <span id="tempoVal"></span><input type="range" id="tempo" min="80" max="240" value="150"></label>
+      </div>
+      <div class="note">Melodie powstają na bieżąco według reguł chorału: finalis, ton recytacyjny, ambitus modusu, neumy, intonacja i kadencja. Nic nie jest kopiowane z istniejących śpiewów.</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Warstwy</div>
+      <div class="layers" id="layers"></div>
+      <div class="row2">Głośność całości <input type="range" id="vol" min="0" max="100" value="80"></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Wzmacniacz lampowy basu</div>
+      <div class="grid2" id="ampBox"></div>
+      <div class="note">Bas syntezatora przechodzi przez wzmacniacz liczony z fizyki: dwie lampy 12AX7, odwracacz fazy, para EL84 z autopolaryzacją, transformator z nasyceniem i histerezą, prostownik i zasilacz, głośnik jako żywe obciążenie. Potem przez kolumnę policzoną z drgań stożka, skrzyni i mikrofonu.</div>
+    </div>
+  </div>
+  <div class="credits">
+    Chóry: samples derived from VocalSet (Wilkins, Seetharaman, Wahl, Pardo 2018), CC BY 4.0, https://doi.org/10.5281/zenodo.1442513 — epic-choir by thepok. Chór dziecięcy powstał z głosów sopranów i altów tego zbioru: formanty przesunięte w górę jak u krótszego, dziecięcego traktu głosowego.<br>
+    Organy (Simon Dalzell / Ivy Audio), dzwony rurowe, dzwonki ręczne, gongi, dzwoneczki: VCSL – Versilian Community Sample Library (CC0). Dzwony dzwonnicy, semantron, łańcuchy, wiatr i syntezatory są syntetyzowane. Teksty łacińskie z psalmów, proroków i liturgii (domena publiczna). Nagrania miejsc: IR Library by Conner (MIT).
+  </div>
+</div>
+<script src="js/core.js"></script>
+<script src="js/theory.js"></script>
+<script src="js/patches.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/mixer.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
