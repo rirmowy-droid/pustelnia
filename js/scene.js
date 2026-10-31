@@ -25,7 +25,8 @@ function frame(){
   // stars and the moon come out with the night
   if (night > .35){ for (const s of stars){ const a = (night - .35) * 1.5 * (.6 + .4 * Math.sin(tm * 1.3 + s.p)); g2.fillStyle = `rgba(255,244,220,${Math.min(1, a)})`; g2.beginPath(); g2.arc(s.x * W, s.y * H, s.r, 0, 7); g2.fill(); } }
   const mx = W * .8, my = H * (.16 + (1 - night) * .25), mr = Math.min(W, H) * .045;
-  g2.fillStyle = `rgba(255,236,200,${.35 + night * .6})`; g2.beginPath(); g2.arc(mx, my, mr, 0, Math.PI * 2); g2.arc(mx + mr * .42, my - mr * .18, mr * .9, 0, Math.PI * 2, true); g2.fill('evenodd');   // crescent
+  g2.fillStyle = `rgba(255,236,200,${.35 + night * .6})`; g2.beginPath(); g2.arc(mx, my, mr, 0, Math.PI * 2); g2.fill();
+  { const u = clamp(my / (H * .75) / .55, 0, 1), sc = col(top, mid, u); g2.fillStyle = `rgb(${sc})`; g2.beginPath(); g2.arc(mx + mr * .42, my - mr * .2, mr * .88, 0, Math.PI * 2); g2.fill(); }   // crescent: the sky covers part of the disc
   // mountains of the desert (two ranges)
   const drawRidge = (R, c, alpha) => { g2.fillStyle = `rgba(${c},${alpha})`; g2.beginPath(); g2.moveTo(0, H); for (const [x, y] of R) g2.lineTo(x * W, y * H); g2.lineTo(W, H); g2.fill(); };
   drawRidge(R1, col([170, 92, 70], [52, 38, 70], night).join(','), 1);
